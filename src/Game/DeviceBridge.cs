@@ -3,13 +3,15 @@ using Keen.VRage.Core;
 using Keen.VRage.Core.Game.Systems;
 using Keen.VRage.Library.Utils;
 using SE2GameAPI.Redis;
+using SE2GameAPI.Game.Voxels;
 namespace SE2GameAPI.Game;
 
-internal sealed class DeviceBridge(RedisGateway gateway, string runId) : IDisposable
+internal sealed class DeviceBridge(RedisGateway gateway, string runId, VoxelRedisGateway voxelGateway) : IDisposable
 {
     private DeviceRegistry registry = new();
     private TelemetryScheduler telemetry = new();
     private readonly CommandRouter router = new();
+    private readonly VoxelScanService voxels = new(voxelGateway);
     private Session? session;
     private int generation, registryGeneration = -1;
     private long pendingToken, sequence, ticks;
@@ -27,6 +29,7 @@ internal sealed class DeviceBridge(RedisGateway gateway, string runId) : IDispos
         {
             session = current; generation++; Volatile.Write(ref pendingToken, 0);
         }
+        voxelGateway.SetSession(Epoch, current != null && !current.IsUnloading);
         if (current == null || current.IsUnloading)
         {
             gateway.Update(new(Epoch, "WAITING_FOR_WORLD", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), [], 0, maxMs, ticks == 0 ? 0 : totalMs / ticks, ticks, router.Applied, gateway.QueueDepth + router.Depth, registry.DiscoveryMs));
@@ -47,17 +50,20 @@ internal sealed class DeviceBridge(RedisGateway gateway, string runId) : IDispos
             if (registryGeneration != expectedGeneration)
             {
                 router.Reset(); registry = new(); telemetry = new();
+                voxels.Reset(Epoch);
                 registryGeneration = expectedGeneration;
             }
             registry.Navigate(current, budget);
-            // Rotate first service so a busy phase cannot starve discovery or telemetry.
-            for (int phase = 0; phase < 3 && budget.HasTime; phase++)
+            // Same shared budget; no per-scanner timers. Navigation retains first priority.
+            for (int phase = 0; phase < 4 && budget.HasTime; phase++)
             {
-                switch ((ticks + phase) % 3)
+                switch ((ticks + phase) % 4)
                 {
                     case 0: router.Run(current, Epoch, registry, gateway, budget); break;
                     case 1: registry.Discover(current, budget); break;
                     case 2: telemetry.Run(current, registry, budget); break;
+                    case 3: voxels.Run(new Se2VoxelWorld(current), Epoch, () => budget.HasTime,
+                        DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); break;
                 }
             }
             error = null;
@@ -79,6 +85,7 @@ internal sealed class DeviceBridge(RedisGateway gateway, string runId) : IDispos
     public void Dispose()
     {
         disposed = true;
+        voxelGateway.SetSession(Epoch, false);
         if (session is { IsUnloading: false } current) _ = StopNavigationAsync(current);
     }
     private async Task StopNavigationAsync(Session current)
