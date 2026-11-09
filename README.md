@@ -235,6 +235,14 @@ Docs: [docs/AUTOPILOT.md](docs/AUTOPILOT.md) (navigation contract),
 Python client + parking module: the `secontrol` repository, docs `SE2_BACKEND.md` and
 `SE2_NAVIGATION.md`.
 
+Runnable examples (need a running game and `$env:PYTHONPATH` pointing at secontrol's `src`):
+
+```powershell
+python examples\autopilot.py      # fly a grid to a world position
+python examples\transfer_tool.py --grid "Blue Fighter" --station "Concordia Research Station"
+# autopilot docking + transfer all items from the ship connector to the base connector
+```
+
 ## Versioning
 
 The plugin and the Python client evolve in lockstep (protocol v2). This repository follows
