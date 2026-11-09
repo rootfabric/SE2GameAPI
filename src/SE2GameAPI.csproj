@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>SE2GameAPI</AssemblyName>
+    <Version>0.1.0</Version>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <Game2 Condition="'$(Game2)' == ''">D:\SteamLibrary\steamapps\common\SpaceEngineers2\Game2</Game2>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="VRage.Physics"><HintPath>$(Game2)\VRage.Physics.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Game"><HintPath>$(Game2)\VRage.Game.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Game2.Simulation"><HintPath>$(Game2)\Game2.Simulation.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Core.Game"><HintPath>$(Game2)\VRage.Core.Game.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.DCS"><HintPath>$(Game2)\VRage.DCS.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Core"><HintPath>$(Game2)\VRage.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Library"><HintPath>$(Game2)\VRage.Library.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="2.8.31" />
+  </ItemGroup>
+  <Target Name="VerifyGame" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(Game2)\VRage.Core.dll')" Text="Set Game2 to the installed game's Game2 directory." />
+  </Target>
+</Project>
+

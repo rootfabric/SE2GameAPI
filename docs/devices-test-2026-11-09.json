@@ -1,0 +1,71 @@
+{
+  "counts": {
+    "lamp": 222,
+    "door": 64
+  },
+  "targets": [
+    {
+      "id": "9545:1",
+      "gridId": "243:1",
+      "gridName": "Concordia Research Station",
+      "name": "Interior Light 0.5\u00a0m",
+      "type": "lamp",
+      "enabled": false,
+      "working": false,
+      "functional": true,
+      "revision": 1,
+      "measuredAtMs": 1794151613345,
+      "status": null,
+      "capabilities": [
+        "switch.enabled"
+      ],
+      "properties": null
+    },
+    {
+      "id": "6121:1",
+      "gridId": "243:1",
+      "gridName": "Concordia Research Station",
+      "name": "Observatory - Entrance B - Door 2",
+      "type": "door",
+      "enabled": true,
+      "working": true,
+      "functional": true,
+      "revision": 1,
+      "measuredAtMs": 1794151613295,
+      "status": "Closed",
+      "capabilities": [
+        "switch.enabled",
+        "door.open"
+      ],
+      "properties": {
+        "status": "Closed",
+        "isOpen": false
+      }
+    }
+  ],
+  "parallel": {
+    "lamp_ms": 77.9999999977008,
+    "door_ms": 594.0000000009604
+  },
+  "load": {
+    "commands": 48,
+    "ack_median_ms": 94.00000000096043,
+    "ack_p95_ms": 109.00000000037835,
+    "scene_average_ms": 0.07590344827586158,
+    "tick_histogram": [
+      26,
+      2,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "tick_count": 29,
+    "lifetime_max_ms": 3.3679
+  },
+  "passed": true,
+  "remaining_changes": []
+}

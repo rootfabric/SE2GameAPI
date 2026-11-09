@@ -1,0 +1,52 @@
+{
+  "functional": "12 commands confirmed; Enabled and Working match both phases",
+  "deduplication": "same toggle submitted 3 times, executed once",
+  "validation": "old session, expired, missing, wrong grid, unsupported operation and revision conflict rejected",
+  "isolation": "219 other lamps unchanged",
+  "idle": {
+    "ticks": 99,
+    "average_scene_ms": 0.11949797979797916,
+    "p95_scene_ms_upper_bound": 0.1,
+    "tick_histogram": [
+      96,
+      2,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]
+  },
+  "load": {
+    "clients": 12,
+    "commands": 96,
+    "seconds": 3.25,
+    "ack_median_ms": 390.99999999962165,
+    "ack_p95_ms": 406.9999999992433,
+    "ticks": 73,
+    "average_scene_ms": 0.07115616438356166,
+    "p95_scene_ms_upper_bound": 0.25,
+    "tick_histogram": [
+      65,
+      8,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "single_client_ack_ms": {
+    "median": 94.00000000096043,
+    "maximum": 110.00000000058208
+  },
+  "offline_client": "fails explicitly",
+  "redis_recovery": "same game session kept ticking during outage; command confirmed after reconnect",
+  "epoch": "58eedd5305f546c08ad309e9c428a385:1",
+  "startup_inclusive_max_scene_ms": 10.0224,
+  "total_lamps": 222
+}

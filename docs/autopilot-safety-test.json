@@ -1,0 +1,63 @@
+{
+  "rejections": {
+    "no_wheels": "failed: ground_requires_2_to_16_wheels",
+    "invalid_limit": "failed: invalid_navigation_limits",
+    "zero_heading": "failed: invalid_orientation",
+    "busy": "failed: autopilot_busy_stop_first"
+  },
+  "stop_speed": 0.0,
+  "return": {
+    "missionId": "7c61b3acc51147f3bf360e0c625991c8",
+    "mode": "none",
+    "error": "",
+    "position": [
+      251859.82062893023,
+      9076.645305530525,
+      -13813.362594570608
+    ],
+    "velocity": [
+      0,
+      0,
+      0
+    ],
+    "forward": [
+      -0.498151034116745,
+      -0.20959687232971191,
+      -0.8413766622543335
+    ],
+    "up": [
+      0.15508776903152466,
+      -0.9762351512908936,
+      0.1513693928718567
+    ],
+    "distance": 0.5707420585274624,
+    "headingErrorDeg": 0,
+    "positiveThrust": [
+      26850.91796875,
+      53701.83203125,
+      82492.8828125
+    ],
+    "negativeThrust": [
+      26850.91796875,
+      53701.83203125,
+      82492.8828125
+    ],
+    "mass": 7012.697265625,
+    "wheels": 0,
+    "ready": true,
+    "target": null,
+    "collisionAvoidance": false
+  },
+  "scene_average_ms": 0.15007075471698192,
+  "tick_histogram": [
+    53,
+    50,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0
+  ]
+}

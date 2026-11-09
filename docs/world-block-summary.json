@@ -1,0 +1,41 @@
+{
+  "epoch": "45cd05d1b90747afa0385b33a9a9dc16:1",
+  "inventoryAtMs": 1794152011188,
+  "total": 19407,
+  "definitions": 103,
+  "families": {
+    "antenna": 4,
+    "construction": 18623,
+    "production": 11,
+    "battery": 10,
+    "seat": 21,
+    "button": 25,
+    "cargo": 55,
+    "connector": 7,
+    "conveyor": 61,
+    "light": 222,
+    "weapon": 4,
+    "gravity": 5,
+    "gyro": 24,
+    "tank": 1,
+    "thruster": 229,
+    "landing_gear": 18,
+    "medical": 4,
+    "generator": 1,
+    "reactor": 7,
+    "door": 64,
+    "solar": 10,
+    "survival": 1
+  },
+  "grids": {
+    "Concordia Research Station": 1860,
+    "Green Station": 8282,
+    "H2 Prototype": 148,
+    "Blue Ship": 2406,
+    "Red Ship": 5125,
+    "Blue Fighter": 717,
+    "Unpainted Fighter": 717,
+    "Blue Miner": 151,
+    "Grid": 1
+  }
+}

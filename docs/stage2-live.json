@@ -1,0 +1,15 @@
+{
+  "cargo": 55,
+  "connectors": 7,
+  "batteries": 10,
+  "source_items": [
+    {
+      "index": 0,
+      "item": "6ae64849-8c10-4341-88da-dbe385cbb3bb : Vanilla\\Items\\Ores\\IceOre\\IceOreItem.def",
+      "amount": "1873.000001"
+    }
+  ],
+  "connector_refusal": "no_nearby_connector",
+  "battery_restored": true,
+  "scene_max_ms": 19.3015
+}
