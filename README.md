@@ -87,11 +87,40 @@ Output: `artifacts\plugin\SE2GameAPI.dll` (plus dependency DLLs).
 
 ### 4. Run Redis
 
+The plugin needs a Redis 6+ reachable at `redis://127.0.0.1:6379/0` (localhost only).
+Pick any option:
+
+**Option A — Docker Desktop** (easiest if you already have it):
+
 ```powershell
 docker run -d --name se2-game-api-redis -p 127.0.0.1:6379:6379 redis:7
 ```
 
-Any Redis reachable at `redis://127.0.0.1:6379/0` works.
+**Option B — native Windows build** (no Docker; e.g.
+[redis-windows](https://github.com/redis-windows/redis-windows) or Memurai):
+
+```powershell
+# download a Windows redis-server binary, then:
+.\redis-server.exe --port 6379 --bind 127.0.0.1 --protected-mode yes
+```
+
+**Option C — WSL2**:
+
+```powershell
+wsl --install -d Ubuntu   # if WSL is not installed yet
+wsl sudo apt-get update && wsl sudo apt-get install -y redis-server
+wsl sudo service redis-server start
+```
+
+Check the port is free first (`Test-NetConnection 127.0.0.1 -Port 6379` should fail
+before you start) and verify after:
+
+```powershell
+docker exec se2-game-api-redis redis-cli PING   # -> PONG  (docker option)
+```
+
+Redis must be running before you launch the game; the plugin writes state with a short
+TTL, so the game simply reconnects if you restart Redis between sessions.
 
 ### 5. Launch the game with the plugin
 
