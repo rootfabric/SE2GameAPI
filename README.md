@@ -47,13 +47,19 @@ The Python client lives in the [`secontrol`](https://github.com/rootfabric/secon
 repository (`secontrol.se2`, `secontrol.se2_navigation`, `secontrol.se2_parking`) — but any
 client speaking the Redis protocol below works.
 
+> **The reference client is [`secontrol`](https://github.com/rootfabric/secontrol).**
+> It is consumed **directly from the git repository — there is no pip package and none is
+> required.** secontrol also contains the full operator playbook, device skills and mission
+> scripts this API was built for (see the section *Python client (secontrol)* below).
+
 ## Requirements
 
 - Windows with [Space Engineers 2](https://store.steampowered.com/app/1068430/) installed.
 - [Pulsar 2.4.3+](https://github.com/SpaceGT/Pulsar/releases) mod loader (Windows x64).
 - .NET SDK 10 (`dotnet` in PATH or portable under `artifacts/tools/dotnet`).
 - A local Redis 6+ (Docker is the easiest way).
-- Python 3.11+ only if you use the `secontrol` client.
+- Python 3.11+ only if you use the `secontrol` client (cloned from its git repository;
+  no pip package).
 
 ## Deployment
 
@@ -144,12 +150,41 @@ docker exec se2-game-api-redis redis-cli GET se2:local:state
 `"state":"READY"` with a fresh `sampledAtMs` means the world is up. Plugin-side state and
 transport log: `%LOCALAPPDATA%\SE2GameAPI\` (`bridge-state.json`, `transport.log`).
 
-### 7. First client call
+### 7. Python client (secontrol)
+
+The plugin API is transport-level; **secontrol** is the reference Python client and
+operator toolkit. It is **installed from the git repository, without pip**:
 
 ```powershell
-$env:PYTHONPATH = 'C:\path\to\secontrol\src'
+# clone secontrol anywhere (no pip install, no build step)
+git clone https://github.com/rootfabric/secontrol.git C:\tools\secontrol
+
+# point Python at its source tree — that is the whole "installation"
+$env:PYTHONPATH = 'C:\tools\secontrol\src'
+python -c "import secontrol, secontrol.se2; print('ok')"
+```
+
+Keep `$env:PYTHONPATH` set in your working shell (or add it to your user environment
+variables). If you use the client inside your own code, an alternative to PYTHONPATH is
+adding the path in Python:
+
+```python
+import sys
+sys.path.insert(0, r'C:\tools\secontrol\src')
+from secontrol.se2 import Client
+```
+
+First call against a running game (see steps 1–6 above):
+
+```powershell
+$env:PYTHONPATH = 'C:\tools\secontrol\src'
 python -c "from secontrol.se2 import Client; c = Client(); print(len(c.snapshot()['devices']), 'devices')"
 ```
+
+The only Python dependency is `redis` (`pip install redis` — the client library, not
+secontrol itself). secontrol's SE2 modules (`secontrol.se2`, `secontrol.se2_navigation`,
+`secontrol.se2_parking`) live on the `main` branch together with the operator playbook,
+device skills and mission scripts.
 
 ## Protocol (Redis keys, prefix `se2:local`)
 
