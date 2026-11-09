@@ -188,11 +188,18 @@ device skills and mission scripts.
 
 ## Protocol (Redis keys, prefix `se2:local`)
 
-| Key | Type | Purpose |
+| Key / channel | Type | Purpose |
 |---|---|---|
 | `se2:local:state` | string (JSON) | full world snapshot: bridge state, epoch, all devices with telemetry; `protocolVersion: 2` |
 | `se2:local:commands` | list | command queue (Lua-enqueued, max 256, 15 s TTL) |
 | `se2:local:reply:{requestId}` | string (JSON) | command receipt: `confirmed`/`rejected`/`failed` + actual state |
+| `se2:local:state` (channel) | pub/sub | every snapshot is **published** (~5 Hz) — subscribe instead of polling |
+| `se2:local:replies` (channel) | pub/sub | every command receipt is **pushed** to subscribers |
+
+Pub/sub uses plain Redis `PUBLISH`/`SUBSCRIBE` — **no server configuration required**
+(no `notify-keyspace-events` or config-file changes; the default `redis:7` Docker image and
+any native build work as-is). Subscribe-only clients never poll; the Python client exposes
+this as `Client.subscribe()` / `Client.listen(callback)`.
 
 Commands carry `requestId`, `epoch`, `gridId`, `deviceId`, `cmd`, typed parameters and an
 expiry; replies are per-request receipts with the post-command device state. Devices list

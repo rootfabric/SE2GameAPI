@@ -36,6 +36,11 @@ internal sealed class RedisGateway : IDisposable
             options.BacklogPolicy = BacklogPolicy.FailFast;
             connection = await ConnectionMultiplexer.ConnectAsync(options);
             var db = connection.GetDatabase();
+            async Task ReplyAsync(string requestId, string json)
+            {
+                await db.StringSetAsync($"se2:local:reply:{requestId}", json, TimeSpan.FromSeconds(60));
+                await db.PublishAsync(RedisChannel.Literal("se2:local:replies"), json);
+            }
             while (!stop.IsCancellationRequested)
             {
                 try
@@ -49,7 +54,7 @@ internal sealed class RedisGateway : IDisposable
                     {
                         string json = JsonSerializer.Serialize(pair.Value.Completion.Task.Result, Json);
                         completed[pair.Key] = (json, now + 60000);
-                        await db.StringSetAsync($"se2:local:reply:{pair.Key}", json, TimeSpan.FromSeconds(60));
+                        await ReplyAsync(pair.Key, json);
                         pending.Remove(pair.Key);
                     }
                     int capacity = Math.Min(16, 64 - pending.Count);
@@ -64,7 +69,7 @@ internal sealed class RedisGateway : IDisposable
                             if (cmd == null || !Guid.TryParseExact(cmd.RequestId, "N", out _)) continue;
                             if (completed.TryGetValue(cmd.RequestId, out var old))
                             {
-                                await db.StringSetAsync($"se2:local:reply:{cmd.RequestId}", old.Json, TimeSpan.FromSeconds(60));
+                                await ReplyAsync(cmd.RequestId, old.Json);
                                 continue;
                             }
                             if (pending.ContainsKey(cmd.RequestId)) continue;
@@ -72,7 +77,7 @@ internal sealed class RedisGateway : IDisposable
                             if (completed.Count + pending.Count >= 4096)
                             {
                                 var busy = JsonSerializer.Serialize(new CommandResult(cmd.RequestId, "rejected", "dedup_capacity", null), Json);
-                                await db.StringSetAsync($"se2:local:reply:{cmd.RequestId}", busy, TimeSpan.FromSeconds(60));
+                                await ReplyAsync(cmd.RequestId, busy);
                                 continue;
                             }
                             var work = new Work(cmd);
@@ -95,6 +100,8 @@ internal sealed class RedisGateway : IDisposable
                         nextPublish = now + 200;
                         string json = JsonSerializer.Serialize(Volatile.Read(ref snapshot), Json);
                         await db.StringSetAsync("se2:local:state", json, TimeSpan.FromSeconds(3));
+                        // Push notification for subscribed clients (no server config required for PUBLISH).
+                        await db.PublishAsync(RedisChannel.Literal("se2:local:state"), json);
                         File.WriteAllText(Path.Combine(directory, "bridge-state.json.tmp"), json);
                         File.Move(Path.Combine(directory, "bridge-state.json.tmp"), Path.Combine(directory, "bridge-state.json"), true);
                     }
