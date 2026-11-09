@@ -5,11 +5,51 @@ using Keen.VRage.DCS.Accessors;
 using SE2GameAPI.Redis;
 namespace SE2GameAPI.Game.Devices;
 
+// Any device with an inventory (cargo, connector, ...) can act as a transfer source/target.
+internal interface IInventorySource
+{
+    public InventoryComponent? PrimaryInventory { get; }
+}
+
+// Shared transfer_item handling for inventory-bearing devices.
+internal static class InventoryTransfer
+{
+    public static Func<DeviceState, bool>? Apply(DeviceCommand command, DeviceState before,
+        InventoryComponent source, string sourceDeviceId, string sourceGridId,
+        Dictionary<string, DeviceAdapter> registry)
+    {
+        if (command.Cmd != "transfer_item") return null;
+        if (command.TargetId == sourceDeviceId ||
+            !registry.TryGetValue(command.TargetId ?? "", out var target) || target is not IInventorySource destination ||
+            destination.PrimaryInventory is not { } destinationInventory)
+            throw new InvalidOperationException("invalid_target_inventory");
+        if (destination is DeviceAdapter destAdapter && destAdapter.Id == sourceDeviceId)
+            throw new InvalidOperationException("invalid_target_inventory");
+        // The engine's TransferByIdx enforces inventory filters itself; SE2 keeps separate
+        // conveyor-system objects per grid, so an explicit connectivity check would wrongly
+        // reject docked-grid transfers.
+        if (command.ItemIndex is not int index || index < 0 || index >= source.Items.Length ||
+            command.Amount is not double quantity || !double.IsFinite(quantity) || quantity <= 0)
+            throw new InvalidOperationException("invalid_item_or_amount");
+        var item = source.Items[index];
+        var amount = (Keen.VRage.Library.Mathematics.FixedPoint)quantity;
+        if (amount <= 0 || source.CountItem(item.Definition) < amount)
+            throw new InvalidOperationException("insufficient_items");
+        var sourceBefore = source.CountItem(item.Definition);
+        var targetBefore = destinationInventory.CountItem(item.Definition);
+        var moved = source.TransferByIdx(destinationInventory, index, null, amount, false);
+        if (moved != amount) throw new InvalidOperationException("transfer_not_completed");
+        return _ => source.CountItem(item.Definition) == sourceBefore - amount &&
+                    destinationInventory.CountItem(item.Definition) == targetBefore + amount;
+    }
+}
+
 internal sealed class InventoryDevice(FunctionalBlockComponent block, InventoryComponent inventory, string family,
-    Dictionary<string, DeviceAdapter> registry) : DeviceAdapter
+    Dictionary<string, DeviceAdapter> registry) : DeviceAdapter, IInventorySource
 {
     private readonly FunctionalBlockComponent sourceBlock = block;
     private readonly InventoryComponent sourceInventory = inventory;
+    public InventoryComponent? PrimaryInventory => sourceInventory;
     private readonly DEntity entityId = block.DEntity;
     private DeviceState? state;
     private string? fingerprint;
@@ -43,24 +83,6 @@ internal sealed class InventoryDevice(FunctionalBlockComponent block, InventoryC
     }
     public override Func<DeviceState, bool>? Apply(DeviceCommand command, DeviceState before)
     {
-        if (command.Cmd != "transfer_item") return null;
-        if (command.TargetId == Id || !registry.TryGetValue(command.TargetId ?? "", out var target) || target is not InventoryDevice destination)
-            throw new InvalidOperationException("invalid_target_inventory");
-        if (destination.sourceBlock.Grid.DEntity.ToString() != before.GridId ||
-            sourceInventory.ConveyorSystem == null || !ReferenceEquals(sourceInventory.ConveyorSystem, destination.sourceInventory.ConveyorSystem))
-            throw new InvalidOperationException("inventories_not_connected");
-        if (command.ItemIndex is not int index || index < 0 || index >= sourceInventory.Items.Length ||
-            command.Amount is not double quantity || !double.IsFinite(quantity) || quantity <= 0)
-            throw new InvalidOperationException("invalid_item_or_amount");
-        var item = sourceInventory.Items[index];
-        var amount = (Keen.VRage.Library.Mathematics.FixedPoint)quantity;
-        if (amount <= 0 || sourceInventory.CountItem(item.Definition) < amount)
-            throw new InvalidOperationException("insufficient_items");
-        var sourceBefore = sourceInventory.CountItem(item.Definition);
-        var targetBefore = destination.sourceInventory.CountItem(item.Definition);
-        var moved = sourceInventory.TransferByIdx(destination.sourceInventory, index, null, amount, false);
-        if (moved != amount) throw new InvalidOperationException("transfer_not_completed");
-        return _ => sourceInventory.CountItem(item.Definition) == sourceBefore - amount &&
-                    destination.sourceInventory.CountItem(item.Definition) == targetBefore + amount;
+        return InventoryTransfer.Apply(command, before, sourceInventory, Id, before.GridId, registry);
     }
 }

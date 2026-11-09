@@ -15,6 +15,7 @@ internal abstract class FunctionalDevice(PowerableBlockComponent block) : Device
     public DeviceState? State { get; private set; }
     private long nextMetadata;
     private readonly InventoryComponent[] inventories = block.Entity.Components.OfType<InventoryComponent>().ToArray();
+    protected InventoryComponent[] Inventories => inventories;
     private InventoryTelemetry[]? inventorySnapshot;
     private string? inventoryFingerprint;
     public abstract string Type { get; }

@@ -38,7 +38,7 @@ internal static class DeviceFactory
         if (light != null) return new LampDevice(power, light);
         var connector = block.Entity.TryGet<ConnectorComponent>();
         if (connector != null) return new ConnectorDevice(power, connector,
-            block.Entity.TryGet<MechanicalBlockCounterpartDetectionComponent>());
+            block.Entity.TryGet<MechanicalBlockCounterpartDetectionComponent>(), registry);
         var gear = block.Entity.TryGet<MagneticBlockComponent>();
         if (gear != null) return new LandingGearDevice(power, gear);
         var thruster = block.Entity.TryGet<ThrusterComponent>();

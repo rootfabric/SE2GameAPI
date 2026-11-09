@@ -1,14 +1,17 @@
 using Keen.Game2.Simulation.WorldObjects.CubeBlocks;
 using Keen.Game2.Simulation.WorldObjects.CubeBlocks.MechanicalBlocks;
+using Keen.Game2.Simulation.WorldObjects.Items;
 using Keen.VRage.Library.Mathematics;
 using SE2GameAPI.Redis;
 namespace SE2GameAPI.Game.Devices;
 internal sealed class ConnectorDevice(PowerableBlockComponent block, ConnectorComponent connector,
-    MechanicalBlockCounterpartDetectionComponent? detector) : FunctionalDevice(block)
+    MechanicalBlockCounterpartDetectionComponent? detector, Dictionary<string, DeviceAdapter> registry)
+    : FunctionalDevice(block), IInventorySource
 {
-    private static readonly string[] Features = ["switch.enabled", "connector.connect"];
+    private static readonly string[] Features = ["switch.enabled", "connector.connect", "inventory.transfer"];
     public override string Type => "connector";
     protected override string[] Capabilities => Features;
+    public InventoryComponent? PrimaryInventory => Inventories.Length > 0 ? Inventories[0] : null;
     protected override string Status => connector.IsConnected ? "Connected" : "Disconnected";
     private sealed record ConnectorProperties(bool IsConnected, string? CounterpartId, string? NearbyCounterpartId,
         bool ReadyToConnect, bool Aligned,
@@ -31,6 +34,11 @@ internal sealed class ConnectorDevice(PowerableBlockComponent block, ConnectorCo
     }
     public override Func<DeviceState, bool>? Apply(DeviceCommand command, DeviceState before)
     {
+        if (command.Cmd == "transfer_item")
+        {
+            var inventory = PrimaryInventory ?? throw new InvalidOperationException("no_inventory");
+            return InventoryTransfer.Apply(command, before, inventory, Id, before.GridId, registry);
+        }
         if (command.Cmd is not ("connect" or "disconnect")) return base.Apply(command, before);
         if (!before.Enabled || !before.Working) throw new InvalidOperationException("connector_not_working");
         if (command.Cmd == "connect")

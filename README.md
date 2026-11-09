@@ -39,6 +39,9 @@ protocol, not Redis itself.
   (`pivotPosition/pivotForward/pivotUp`), engine alignment flag, synchronous `TryConnect`.
   The companion Python module performs full park/unpark cycles (verified in-game: undock,
   40 m back-off, return, dock `connected: true`).
+- **Item transfer**: `transfer_item` moves items between any two inventory-bearing devices
+  (cargo, connectors) — the engine enforces inventory filters. Verified in-game: a tool
+  placed in the ship connector was moved to the base connector after autopilot docking.
 - **Safety model**: per-session epochs (devices must be rediscovered after restart), stale
   telemetry rejection, command dedup by request id, optimistic conflict check
   (`expectedRevision`), honest "unknown outcome" timeouts.
