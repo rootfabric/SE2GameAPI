@@ -42,6 +42,9 @@ protocol, not Redis itself.
 - **Item transfer**: `transfer_item` moves items between any two inventory-bearing devices
   (cargo, connectors) — the engine enforces inventory filters. Verified in-game: a tool
   placed in the ship connector was moved to the base connector after autopilot docking.
+- **Drills**: `drill_mode` per drill with two engine actions — `collect` (primary brush,
+  ore collection) and `extend` (secondary, wider excavation shape), plus `off`. Telemetry
+  includes action flags and `isDrillingVoxels`. Verified in-game on a miner grid.
 - **Safety model**: per-session epochs (devices must be rediscovered after restart), stale
   telemetry rejection, command dedup by request id, optimistic conflict check
   (`expectedRevision`), honest "unknown outcome" timeouts.

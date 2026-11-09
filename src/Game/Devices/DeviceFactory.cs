@@ -4,6 +4,7 @@ using Keen.Game2.Simulation.WorldObjects.Shared.Visuals.Lights;
 using Keen.Game2.Simulation.WorldObjects.CubeBlocks.MechanicalBlocks;
 using Keen.Game2.Simulation.WorldObjects.Items;
 using Keen.Game2.Simulation.WorldObjects.CubeBlocks.Movement;
+using Keen.Game2.Simulation.WorldObjects.Tools.Voxels;
 using Keen.Game2.Simulation.GameSystems.RangedAffectGenerators.Gravity;
 using Keen.Game2.Simulation.GameSystems.Antennas;
 using Keen.Game2.Simulation.WorldObjects.CubeBlocks.Production.ItemConverters;
@@ -41,6 +42,8 @@ internal static class DeviceFactory
             block.Entity.TryGet<MechanicalBlockCounterpartDetectionComponent>(), registry);
         var gear = block.Entity.TryGet<MagneticBlockComponent>();
         if (gear != null) return new LandingGearDevice(power, gear);
+        var drill = block.Entity.TryGet<DrillComponent>();
+        if (drill != null) return new DrillDevice(power, drill);
         var thruster = block.Entity.TryGet<ThrusterComponent>();
         if (thruster != null) return new ScalarDevice(power, "thruster", "set_thrust_override",
             "thruster.override", () => thruster.ThrustOverride, v => thruster.ThrustOverride = v, 0, 1);
@@ -59,7 +62,7 @@ internal static class DeviceFactory
             return new ResourcePowerDevice(power, "Battery", resource);
         string definition = block.Definition.DebugNameShort;
         string family = definition.Split('_')[0];
-        foreach (string prefix in new[] { "IonThruster", "Gyroscope", "LandingGear", "Battery", "Reactor", "Assembler", "Refinery", "Smelter", "Antenna", "GravityGenerator", "Cockpit", "ControlSeat", "Button", "Gatling", "MedicalRoom", "SurvivalKit", "O2H2Generator", "Bed" })
+        foreach (string prefix in new[] { "IonThruster", "Gyroscope", "LandingGear", "Battery", "Reactor", "Assembler", "Refinery", "Smelter", "Antenna", "GravityGenerator", "Cockpit", "ControlSeat", "Button", "Gatling", "MedicalRoom", "SurvivalKit", "O2H2Generator", "Bed", "Drill", "OreDetector" })
             if (family.StartsWith(prefix, StringComparison.Ordinal)) return new PowerDevice(power, prefix);
         return null;
     }
