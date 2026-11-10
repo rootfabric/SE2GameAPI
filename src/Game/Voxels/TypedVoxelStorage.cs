@@ -58,4 +58,55 @@ internal sealed class TypedVoxelStorage : IVoxelStorage
         }
         finally { data.Dispose(); }
     }
+    public byte[]? ReadMaterials(I3 min, I3 size)
+    {
+        if(!alive()) return null;
+        var processor=MaterialProcessor();
+        if(processor==null) return null;
+        var storage=component.Storage;
+        if(storage==null) return null;
+        var data=new StorageData(new Vector3I(size.X,size.Y,size.Z),StorageDataTypeFlags.ContentAndMaterial,false,"SE2GameAPI");
+        try
+        {
+            var flags=VoxelRequestFlags.DefaultRequestFlags;
+            storage.ReadRange(ref data,StorageDataTypeFlags.ContentAndMaterial,0,
+                new Vector3I(min.X,min.Y,min.Z),
+                new Vector3I(min.X+size.X-1,min.Y+size.Y-1,min.Z+size.Z-1),ref flags);
+            var result=new byte[size.Count]; int i=0;
+            for(int z=0;z<size.Z;z++) for(int y=0;y<size.Y;y++) for(int x=0;x<size.X;x++)
+                result[i++]=data.Material(x,y,z);
+            return result;
+        }
+        catch { return null; } // Material channel is optional; content tiles must still publish.
+        finally { data.Dispose(); }
+    }
+    public IReadOnlyDictionary<byte,string>? MaterialLegend
+    {
+        get
+        {
+            var processor=MaterialProcessor();
+            if(processor==null) return null;
+            legend??=BuildLegend(processor);
+            return legend.Count>0?legend:null;
+        }
+    }
+    private Dictionary<byte,string>? legend;
+    // The getter is not compile-visible on VoxelStorageComponentBase; the backing field is stable.
+    private Keen.VRage.Voxels.Definitions.VoxelMaterialDefinitionPostProcessor? MaterialProcessor()
+        => ReflectionVoxelStorage.Get(component,"MaterialProcessor")
+            as Keen.VRage.Voxels.Definitions.VoxelMaterialDefinitionPostProcessor;
+    private static Dictionary<byte,string> BuildLegend(Keen.VRage.Voxels.Definitions.VoxelMaterialDefinitionPostProcessor processor)
+    {
+        var result=new Dictionary<byte,string>();
+        for(byte index=0;index<255;index++)
+        {
+            try
+            {
+                if(processor.TryGetMaterialByIndex(index,out var definition))
+                    result[index]=definition.Name.ToString();
+            }
+            catch { break; }
+        }
+        return result;
+    }
 }

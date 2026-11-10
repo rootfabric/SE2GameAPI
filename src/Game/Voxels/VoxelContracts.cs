@@ -6,10 +6,12 @@ public sealed record VoxelRequest(string RequestId, string Epoch, string GridId,
 public sealed record VoxelPose(string GridId, string GridName, double[] Position);
 public sealed record VoxelTile(int Index, string StorageId, int[] Min, int[] Size,
     double[] Origin, double[] AxisX, double[] AxisY, double[] AxisZ,
-    byte[] Content, long MeasuredAtMs, bool Cached, string? StorageRevision);
+    byte[] Content, long MeasuredAtMs, bool Cached, string? StorageRevision,
+    byte[]? Material = null);
 public sealed record VoxelStatus(string RequestId, string Epoch, string GridId, string State,
     string? Error, VoxelPose? Grid, double Radius, int PlannedTiles, int PublishedTiles,
-    int Reads, int CacheHits, double MaxReadMs, string[] Issues, long UpdatedAtMs)
+    int Reads, int CacheHits, double MaxReadMs, string[] Issues, long UpdatedAtMs,
+    string[]? MaterialLegend = null)
 {
     public int ProtocolVersion => 1;
     public string Scope => "loaded_voxel_storages";
@@ -55,6 +57,10 @@ internal interface IVoxelStorage
     string? Revision { get; }
     // Must be called on the scene/DCS thread. Returns a new owned array, LOD0, x fastest.
     byte[] Read(I3 min, I3 size);
+    // Optional material channel (byte index per voxel); null when the storage cannot provide it.
+    byte[]? ReadMaterials(I3 min, I3 size) => null;
+    // Optional legend: material index -> readable name ("12=IronOre").
+    IReadOnlyDictionary<byte, string>? MaterialLegend => null;
 }
 internal interface IVoxelWorld
 {

@@ -12,7 +12,7 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
     private ConditionalWeakTable<object,IdentityStamp> identities=new();
     private long nextIdentity;
     private sealed record Key(long Identity, VoxelFrame Frame, I3 Min, I3 Size, string? Revision);
-    private sealed record Entry(byte[] Data,long MeasuredAtMs);
+    private sealed record Entry(byte[] Data,byte[]? Material,long MeasuredAtMs);
     private sealed class Scan(VoxelRequest request,VoxelPose pose,Queue<Plan> plans,string[] issues)
     {
         public readonly VoxelRequest Request=request;
@@ -22,6 +22,7 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
         public readonly int Total=plans.Count;
         public int Published,Reads,Hits;
         public double MaxReadMs;
+        public string[]? MaterialLegend;
     }
     private readonly Dictionary<Key,Entry> cache=new();
     private Scan? active;
@@ -35,7 +36,8 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
     }
     private VoxelStatus Status(Scan s,string state,string? error,long now) => new(
         s.Request.RequestId,epoch,s.Request.GridId,state,error,s.Pose,s.Request.Radius,
-        s.Total,s.Published,s.Reads,s.Hits,s.MaxReadMs,s.Issues.Distinct().Take(64).ToArray(),now);
+        s.Total,s.Published,s.Reads,s.Hits,s.MaxReadMs,s.Issues.Distinct().Take(64).ToArray(),now,
+        s.MaterialLegend);
     private void Reject(VoxelRequest r,string error,long now) => outbound=new(new(
         r.RequestId,r.Epoch,r.GridId,"rejected",error,null,double.IsFinite(r.Radius)?r.Radius:0,0,0,0,0,0,[],now));
     private bool Flush()
@@ -84,13 +86,13 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
         {
             string? revision=p.Storage.Revision;
             var key=new Key(identities.GetValue(p.Storage.Identity,_=>new(++nextIdentity)).Value,p.Storage.Frame,p.Min,p.Size,revision);
-            byte[] data; long measured; bool cached=false;
+            byte[] data; byte[]? material; long measured; bool cached=false;
             if(!s.Request.Fresh && cache.TryGetValue(key,out var e) && now>=e.MeasuredAtMs && now-e.MeasuredAtMs<=CacheAgeMs)
-            { data=e.Data; measured=e.MeasuredAtMs; cached=true; s.Hits++; }
+            { data=e.Data; material=e.Material; measured=e.MeasuredAtMs; cached=true; s.Hits++; }
             else
             {
                 var timer=Stopwatch.StartNew();
-                try { data=p.Storage.Read(p.Min,p.Size); }
+                try { data=p.Storage.Read(p.Min,p.Size); material=p.Storage.ReadMaterials(p.Min,p.Size); }
                 finally
                 {
                     timer.Stop(); s.Reads++; s.MaxReadMs=Math.Max(s.MaxReadMs,timer.Elapsed.TotalMilliseconds);
@@ -100,12 +102,12 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
                 if(data.Length!=p.Size.Count) throw new InvalidOperationException("invalid_content_length");
                 if(revision!=p.Storage.Revision) throw new InvalidOperationException("storage_changed_during_read");
                 if(cache.Count>=MaxCacheTiles) cache.Remove(cache.MinBy(v=>v.Value.MeasuredAtMs).Key);
-                cache[key]=new(data,measured);
+                cache[key]=new(data,material,measured);
             }
             var f=p.Storage.Frame;
             var origin=f.World(new(p.Min.X,p.Min.Y,p.Min.Z));
             var tile=new VoxelTile(s.Published,p.Storage.Id,p.Min.Array,p.Size.Array,
-                origin.Array,f.X.Array,f.Y.Array,f.Z.Array,data,measured,cached,revision);
+                origin.Array,f.X.Array,f.Y.Array,f.Z.Array,data,measured,cached,revision,material);
             s.Published++;
             outbound=new(Status(s,"scanning",null,now),tile);
         }
@@ -155,6 +157,8 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
             var issues=catalog.Issues.ToList();
             if(catalog.Storages.Length==0) issues.Add("no_readable_storage: not proof of empty space");
             active=new(r,pose,new(plans),issues.ToArray());
+            var legend=catalog.Storages.Select(s=>s.MaterialLegend).FirstOrDefault(l=>l!=null);
+            if(legend!=null) active.MaterialLegend=legend.Select(kv=>kv.Key+"="+kv.Value).ToArray();
             outbound=new(Status(active,"scanning",null,now));
         }
         catch(Exception e) { Reject(r,e.GetBaseException().Message,now); }
