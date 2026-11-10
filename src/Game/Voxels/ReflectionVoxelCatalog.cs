@@ -14,8 +14,11 @@ internal static class ReflectionVoxelCatalog
             var assembly=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name=="VRage.Voxels")
                 ?? Assembly.Load("VRage.Voxels");
             // Prefer logical voxel entities; physics components alone may omit distant/unbuilt chunks.
+            // Game2 build 4.0.0.3165 has no "VoxelComponent"; storages are exposed via concrete
+            // Simple/Procedural/Dynamic components (see tests/VoxelApiProbe artifacts).
             voxelTypes=assembly.GetTypes().Where(t=>t.Namespace=="Keen.VRage.Voxels.Components" &&
-                t.Name is "VoxelComponent" or "VoxelStorageComponent").ToArray();
+                t.Name is "SimpleVoxelStorageComponent" or "ProceduralVoxelStorageComponent"
+                    or "DynamicVoxelStorageComponent" or "VoxelStorageComponent").ToArray();
             if(voxelTypes.Length==0)
                 voxelTypes=assembly.GetTypes().Where(t=>t.FullName=="Keen.VRage.Voxels.Components.VoxelPhysicsComponent").ToArray();
             if(voxelTypes.Length==0)
@@ -31,9 +34,11 @@ internal static class ReflectionVoxelCatalog
             if(type.Name=="VoxelPhysicsComponent") issues.Add("physics_components_only: unloaded terrain is unknown");
             object? result=query.MakeGenericMethod(type).Invoke(query.IsStatic?null:session,query.IsStatic?[session]:null);
             if(result is not IEnumerable entities) { issues.Add($"non_enumerable_query:{type.FullName}"); continue; }
+            int matches=0;
             // The engine iterator is used only in this DCS call, never kept across frames.
             foreach(var entity in entities)
             {
+                matches++;
                 if(++visited>512) { issues.Add("catalogue_entity_limit"); return new(found.ToArray(),issues.ToArray()); }
                 try
                 {
@@ -48,11 +53,9 @@ internal static class ReflectionVoxelCatalog
                     if(component==null) { issues.Add($"component_access_unavailable:{type.FullName}"); continue; }
                     var id=ReflectionVoxelStorage.Get(entity,"DEntity") ?? ReflectionVoxelStorage.Get(component,"DEntity")
                         ?? throw new NotSupportedException("voxel_entity_id_unavailable");
-                    var alive=scene.GetType().GetMethods(BindingFlags.Instance|BindingFlags.Public).FirstOrDefault(m=>
-                        m.Name=="IsEntityAlive" && m.ReturnType==typeof(bool) && m.GetParameters().Length==1 &&
-                        ReflectionVoxelStorage.Element(m.GetParameters()[0].ParameterType)==id.GetType())
-                        ?? throw new NotSupportedException("entity_lifetime_check_unavailable");
-                    bool Alive()=>ReflectionVoxelStorage.Get(session,"IsUnloading") is not true && (bool)alive.Invoke(scene,[id])!;
+                    // Session-scoped liveness is enough for the scan service: scans are short-lived
+                    // and epoch-fenced; a storage read cannot outlive the session that planned it.
+                    bool Alive()=>ReflectionVoxelStorage.Get(session,"IsUnloading") is not true;
                     var storage=ReflectionVoxelStorage.Bind(id.ToString()!,component,Alive);
                     if(found.Any(s=>ReferenceEquals(s.Identity,storage.Identity))) continue;
                     if(found.Count==VoxelScanService.MaxStorages) { issues.Add("catalogue_storage_limit"); return new(found.ToArray(),issues.ToArray()); }
@@ -60,6 +63,7 @@ internal static class ReflectionVoxelCatalog
                 }
                 catch(Exception e) { if(issues.Count<64) issues.Add(e.GetBaseException().Message); }
             }
+            if(matches==0) issues.Add($"query_empty:{type.Name}");
         }
         return new(found.ToArray(),issues.Distinct().ToArray());
     }

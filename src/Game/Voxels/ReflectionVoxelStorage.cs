@@ -162,7 +162,7 @@ internal sealed class ReflectionVoxelStorage : IVoxelStorage
                     new(M("M21"),M("M22"),M("M23")),new(M("M31"),M("M32"),M("M33")));
             }
             foreach(var method in obj.GetType().GetMethods(Members).Where(m=>
-                m.Name is "VoxelCoordToWorldPosition" or "StorageToWorld" or "VoxelToWorld"))
+                m.Name is "VoxelCoordToWorldPosition" or "StorageToWorld" or "VoxelToWorld" or "StorageToWorldPosition"))
             {
                 var p=method.GetParameters();
                 if(method.IsStatic || p.Length!=1 || method.ReturnType==typeof(void)) continue;
