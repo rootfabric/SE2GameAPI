@@ -17,6 +17,7 @@
     <Reference Include="VRage.DCS"><HintPath>$(Game2)\VRage.DCS.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.Core"><HintPath>$(Game2)\VRage.Core.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.Library"><HintPath>$(Game2)\VRage.Library.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Voxels"><HintPath>$(Game2)\VRage.Voxels.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" Version="2.8.31" />

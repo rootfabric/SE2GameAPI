@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Reflection;
+using Keen.VRage.Voxels.Components;
 namespace SE2GameAPI.Game.Voxels;
 
 internal static class ReflectionVoxelCatalog
@@ -56,6 +57,18 @@ internal static class ReflectionVoxelCatalog
                     // Session-scoped liveness is enough for the scan service: scans are short-lived
                     // and epoch-fenced; a storage read cannot outlive the session that planned it.
                     bool Alive()=>ReflectionVoxelStorage.Get(session,"IsUnloading") is not true;
+                    // Prefer the typed adapter: StorageData is a ref struct and unreadable via reflection.
+                    if(component is VoxelStorageComponentBase typed)
+                    {
+                        var bound=TypedVoxelStorage.TryBind(id.ToString()!,typed,Alive);
+                        if(bound!=null)
+                        {
+                            if(found.Any(s=>ReferenceEquals(s.Identity,bound.Identity))) continue;
+                            if(found.Count==VoxelScanService.MaxStorages) { issues.Add("catalogue_storage_limit"); return new(found.ToArray(),issues.ToArray()); }
+                            found.Add(bound);
+                        }
+                        continue;
+                    }
                     var storage=ReflectionVoxelStorage.Bind(id.ToString()!,component,Alive);
                     if(found.Any(s=>ReferenceEquals(s.Identity,storage.Identity))) continue;
                     if(found.Count==VoxelScanService.MaxStorages) { issues.Add("catalogue_storage_limit"); return new(found.ToArray(),issues.ToArray()); }
