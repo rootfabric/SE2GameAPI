@@ -10,10 +10,14 @@ public sealed record VoxelTile(int Index, string StorageId, int[] Min, int[] Siz
     byte[]? Material = null);
 public sealed record VoxelDeposit(string Material, double[] Min, double[] Max, string StorageId,
     double[] FrameOrigin, double[] AxisX, double[] AxisY, double[] AxisZ);
+// Deterministic asteroid computed from the world seed — no proximity required (SE1-style index).
+public sealed record VoxelAsteroid(double[] Center, double[] Min, double[] Max,
+    string Type, int SectorX, int SectorY, int SectorZ, int EntityId);
 public sealed record VoxelStatus(string RequestId, string Epoch, string GridId, string State,
     string? Error, VoxelPose? Grid, double Radius, int PlannedTiles, int PublishedTiles,
     int Reads, int CacheHits, double MaxReadMs, string[] Issues, long UpdatedAtMs,
-    string[]? MaterialLegend = null, VoxelDeposit[]? Deposits = null)
+    string[]? MaterialLegend = null, VoxelDeposit[]? Deposits = null,
+    VoxelAsteroid[]? Asteroids = null)
 {
     public int ProtocolVersion => 1;
     public string Scope => "loaded_voxel_storages";
@@ -73,6 +77,8 @@ internal interface IVoxelWorld
 {
     VoxelPose? FindGrid(string id);
     VoxelCatalog Discover();
+    // Live game Session (Se2VoxelWorld); null in engine-independent tests.
+    object? SessionObject => null;
 }
 internal interface IVoxelTransport
 {

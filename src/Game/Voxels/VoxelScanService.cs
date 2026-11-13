@@ -27,6 +27,11 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
         public bool DepositsMode;
         public List<IVoxelStorage> DepositTargets = [];
         public List<VoxelDeposit> Deposits = [];
+        // Asteroid-index mode (action "asteroids"): deterministic seed sectors, no proximity.
+        public bool AsteroidsMode;
+        public List<(int X,int Y,int Z)> PendingSectors = [];
+        public List<VoxelAsteroid> Asteroids = [];
+        public object? Generator;
     }
     private readonly Dictionary<Key,Entry> cache=new();
     private Scan? active;
@@ -41,7 +46,8 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
     private VoxelStatus Status(Scan s,string state,string? error,long now) => new(
         s.Request.RequestId,epoch,s.Request.GridId,state,error,s.Pose,s.Request.Radius,
         s.Total,s.Published,s.Reads,s.Hits,s.MaxReadMs,s.Issues.Distinct().Take(64).ToArray(),now,
-        s.MaterialLegend,s.DepositsMode?s.Deposits.ToArray():null);
+        s.MaterialLegend,s.DepositsMode?s.Deposits.ToArray():null,
+        s.AsteroidsMode?s.Asteroids.ToArray():null);
     private void Reject(VoxelRequest r,string error,long now) => outbound=new(new(
         r.RequestId,r.Epoch,r.GridId,"rejected",error,null,double.IsFinite(r.Radius)?r.Radius:0,0,0,0,0,0,[],now));
     private bool Flush()
@@ -66,6 +72,10 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
                     double.IsFinite(r.Radius)?r.Radius:0,0,0,0,0,0,[],now));
             }
             else if(active!=null) Reject(r,"scanner_busy",now);
+            else if(r.Action=="asteroids" && !string.IsNullOrWhiteSpace(r.GridId) &&
+                double.IsFinite(r.Radius) && r.Radius>=1 && r.Radius<=300 &&
+                r.ExpiresAtMs>now && r.ExpiresAtMs<=now+300000)
+                StartAsteroids(world,r,now);
             else if(r.Action=="deposits" && !string.IsNullOrWhiteSpace(r.GridId) &&
                 double.IsFinite(r.Radius) && r.Radius>=1 && r.Radius<=128 &&
                 r.ExpiresAtMs>now && r.ExpiresAtMs<=now+120000)
@@ -81,6 +91,25 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
         var s=active;
         if(s.Request.ExpiresAtMs<=now)
         { outbound=new(Status(s,"partial","deadline",now)); active=null; Flush(); return; }
+        if(s.AsteroidsMode)
+        {
+            // One sector per DCS turn: bounded reflection, no entity materialization.
+            while(s.PendingSectors.Count>0 && hasTime())
+            {
+                var (sx,sy,sz)=s.PendingSectors[0];
+                s.PendingSectors.RemoveAt(0);
+                s.Reads++;
+                s.Asteroids.AddRange(AsteroidIndex.ReadSector(s.Generator!,sx,sy,sz));
+                if(s.Asteroids.Count>=2048) { s.Issues.Add("asteroid_limit"); break; }
+            }
+            if(s.PendingSectors.Count==0 || s.Issues.Contains("asteroid_limit"))
+            {
+                s.Asteroids.Sort((a,b)=>Dist2(a.Center,s.Pose.Position).CompareTo(Dist2(b.Center,s.Pose.Position)));
+                outbound=new(Status(s,"complete",null,now));
+                active=null; Flush(); return;
+            }
+            return;
+        }
         if(s.DepositsMode)
         {
             // Poll engine deposit-detection tasks; finish once every storage reports.
@@ -143,6 +172,60 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
         }
         Flush();
     }
+    private static double Dist2(double[] a, double[] b) =>
+        (a[0]-b[0])*(a[0]-b[0])+(a[1]-b[1])*(a[1]-b[1])+(a[2]-b[2])*(a[2]-b[2]);
+
+    private void StartAsteroids(IVoxelWorld world,VoxelRequest r,long now)
+    {
+        try
+        {
+            var pose=world.FindGrid(r.GridId);
+            if(pose==null) { Reject(r,"grid_not_found",now); return; }
+            var session=world.SessionObject ?? throw new InvalidOperationException("session_unavailable");
+            var generator=AsteroidIndex.Generator(session);
+            if(generator==null)
+            {
+                // Scenario world without procedural generation: registered voxel bodies instead.
+                // Always attempt the registry; ReadRegisteredBodies overwrites Diagnostics on failure.
+                var bodies=AsteroidIndex.ReadRegisteredBodies(session);
+                if(bodies.Count>0 || AsteroidIndex.Diagnostics is null or "providers_empty")
+                {
+                    bodies.Sort((a,b)=>Dist2(a.Center,pose.Position).CompareTo(Dist2(b.Center,pose.Position)));
+                    active=new(r,pose,new Queue<Plan>(),["asteroid_index_registered_bodies"])
+                    {
+                        AsteroidsMode=true,
+                        PendingSectors=[],
+                        Asteroids=bodies,
+                    };
+                    outbound=new(Status(active,"complete",null,now));
+                    return;
+                }
+                throw new InvalidOperationException("generator_unavailable:"+AsteroidIndex.Diagnostics);
+            }
+            if(AsteroidIndex.SectorKeyInt(generator,pose.Position,out var cx,out var cy,out var cz)!=0)
+                throw new InvalidOperationException("sector_key_unavailable");
+            var sectorSize=AsteroidIndex.SectorSize(generator);
+            if(sectorSize<=0) throw new InvalidOperationException("sector_bounds_unavailable");
+            // sectors covering the requested sphere (radius in metres), capped for the DCS budget
+            var sectorRange=Math.Max(1,(int)Math.Ceiling(r.Radius*1000.0/sectorSize));
+            var range=Math.Min(sectorRange,8); // <= 17^3 = 4913 sectors, still one pass per turn
+            var pending=new List<(int,int,int)>();
+            for(int z=cz-range;z<=cz+range;z++)
+            for(int y=cy-range;y<=cy+range;y++)
+            for(int x=cx-range;x<=cx+range;x++)
+                pending.Add((x,y,z));
+            if(sectorRange>range) pending.Add((cx,cy,cz));
+            active=new(r,pose,new Queue<Plan>(),["asteroid_index_from_seed"])
+            {
+                AsteroidsMode=true,
+                PendingSectors=pending,
+                Generator=generator,
+            };
+            outbound=new(Status(active,"scanning",null,now));
+        }
+        catch(Exception e) { Reject(r,e.GetBaseException().Message,now); }
+    }
+
     private void StartDeposits(IVoxelWorld world,VoxelRequest r,long now)
     {
         try

@@ -19,4 +19,5 @@ internal sealed class Se2VoxelWorld(Session session) : IVoxelWorld
         return null;
     }
     public VoxelCatalog Discover()=>ReflectionVoxelCatalog.Discover(session);
+    public object SessionObject => session;
 }
