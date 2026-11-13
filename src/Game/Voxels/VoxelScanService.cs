@@ -185,10 +185,11 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
             var generator=AsteroidIndex.Generator(session);
             if(generator==null)
             {
-                // Scenario world without procedural generation: registered voxel bodies instead.
-                // Always attempt the registry; ReadRegisteredBodies overwrites Diagnostics on failure.
+                // Scenario worlds: the generator may only be reachable through the
+                // SpaceProbe provider registry — read it (this also captures the generator).
                 var bodies=AsteroidIndex.ReadRegisteredBodies(session);
-                if(bodies.Count>0 || AsteroidIndex.Diagnostics is null or "providers_empty")
+                generator=AsteroidIndex.Generator(session); // captured via_probe?
+                if(generator==null && (bodies.Count>0 || AsteroidIndex.Diagnostics is null or "providers_empty"))
                 {
                     bodies.Sort((a,b)=>Dist2(a.Center,pose.Position).CompareTo(Dist2(b.Center,pose.Position)));
                     active=new(r,pose,new Queue<Plan>(),["asteroid_index_registered_bodies"])
