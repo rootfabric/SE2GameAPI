@@ -94,12 +94,12 @@ internal sealed class AutopilotDevice(CubeGridComponent grid) : DeviceAdapter
         // By default a seated player does not cancel the mission; opt back in with KeepControlOnPlayer=false.
         if (!value.KeepControlOnPlayer && HasPilot()) throw new InvalidOperationException("player_has_control");
         if (value.Mode is not ("flight" or "ground")) throw new ArgumentException("invalid_mode");
-        if (!double.IsFinite(value.MaxSpeed) || value.MaxSpeed is < .1 or > 50 ||
+        if (!double.IsFinite(value.MaxSpeed) || value.MaxSpeed is < .1 or > 80 ||
             !double.IsFinite(value.PositionTolerance) || value.PositionTolerance is < .05 or > 20 ||
             !double.IsFinite(value.HeadingToleranceDeg) || value.HeadingToleranceDeg is < .5 or > 30 ||
-            !double.IsFinite(value.TimeoutSeconds) || value.TimeoutSeconds is < 1 or > 600)
+            !double.IsFinite(value.TimeoutSeconds) || value.TimeoutSeconds is < 1 or > 3600)
             throw new ArgumentException("invalid_navigation_limits");
-        if ((destination-Position()).Length>10000) throw new ArgumentException("target_too_far");
+        if ((destination-Position()).Length>60000) throw new ArgumentException("target_too_far");
         if (value.Mode == "ground" && (value.MaxSpeed>10 || (destination-Position()).Length>1000))
             throw new ArgumentException("ground_limit_10mps_1000m");
         if (grid.Data.TryGet<OverriddenThrustData>(out var overridden) && P(overridden.DirectionalThrust).Length>1)

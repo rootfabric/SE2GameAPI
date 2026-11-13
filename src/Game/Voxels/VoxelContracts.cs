@@ -8,10 +8,12 @@ public sealed record VoxelTile(int Index, string StorageId, int[] Min, int[] Siz
     double[] Origin, double[] AxisX, double[] AxisY, double[] AxisZ,
     byte[] Content, long MeasuredAtMs, bool Cached, string? StorageRevision,
     byte[]? Material = null);
+public sealed record VoxelDeposit(string Material, double[] Min, double[] Max, string StorageId,
+    double[] FrameOrigin, double[] AxisX, double[] AxisY, double[] AxisZ);
 public sealed record VoxelStatus(string RequestId, string Epoch, string GridId, string State,
     string? Error, VoxelPose? Grid, double Radius, int PlannedTiles, int PublishedTiles,
     int Reads, int CacheHits, double MaxReadMs, string[] Issues, long UpdatedAtMs,
-    string[]? MaterialLegend = null)
+    string[]? MaterialLegend = null, VoxelDeposit[]? Deposits = null)
 {
     public int ProtocolVersion => 1;
     public string Scope => "loaded_voxel_storages";
@@ -61,6 +63,11 @@ internal interface IVoxelStorage
     byte[]? ReadMaterials(I3 min, I3 size) => null;
     // Optional legend: material index -> readable name ("12=IronOre").
     IReadOnlyDictionary<byte, string>? MaterialLegend => null;
+    // Optional engine deposit detection (all ore deposits of this storage).
+    bool DepositsStarted => false;
+    bool DepositsComplete => false;
+    List<VoxelDeposit> DepositResult => [];
+    void StartDepositDetection() { }
 }
 internal interface IVoxelWorld
 {

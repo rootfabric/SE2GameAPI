@@ -23,6 +23,10 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
         public int Published,Reads,Hits;
         public double MaxReadMs;
         public string[]? MaterialLegend;
+        // Deposit-detection mode (action "deposits"): engine DetectMaterialDeposits per storage.
+        public bool DepositsMode;
+        public List<IVoxelStorage> DepositTargets = [];
+        public List<VoxelDeposit> Deposits = [];
     }
     private readonly Dictionary<Key,Entry> cache=new();
     private Scan? active;
@@ -37,7 +41,7 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
     private VoxelStatus Status(Scan s,string state,string? error,long now) => new(
         s.Request.RequestId,epoch,s.Request.GridId,state,error,s.Pose,s.Request.Radius,
         s.Total,s.Published,s.Reads,s.Hits,s.MaxReadMs,s.Issues.Distinct().Take(64).ToArray(),now,
-        s.MaterialLegend);
+        s.MaterialLegend,s.DepositsMode?s.Deposits.ToArray():null);
     private void Reject(VoxelRequest r,string error,long now) => outbound=new(new(
         r.RequestId,r.Epoch,r.GridId,"rejected",error,null,double.IsFinite(r.Radius)?r.Radius:0,0,0,0,0,0,[],now));
     private bool Flush()
@@ -62,6 +66,10 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
                     double.IsFinite(r.Radius)?r.Radius:0,0,0,0,0,0,[],now));
             }
             else if(active!=null) Reject(r,"scanner_busy",now);
+            else if(r.Action=="deposits" && !string.IsNullOrWhiteSpace(r.GridId) &&
+                double.IsFinite(r.Radius) && r.Radius>=1 && r.Radius<=128 &&
+                r.ExpiresAtMs>now && r.ExpiresAtMs<=now+120000)
+                StartDeposits(world,r,now);
             else if(r.Action!="scan" || string.IsNullOrWhiteSpace(r.GridId) ||
                 !double.IsFinite(r.Radius) || r.Radius<1 || r.Radius>128 ||
                 r.ExpiresAtMs<=now || r.ExpiresAtMs>now+120000)
@@ -73,6 +81,23 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
         var s=active;
         if(s.Request.ExpiresAtMs<=now)
         { outbound=new(Status(s,"partial","deadline",now)); active=null; Flush(); return; }
+        if(s.DepositsMode)
+        {
+            // Poll engine deposit-detection tasks; finish once every storage reports.
+            bool allDone=s.DepositTargets.Count>0;
+            foreach(var target in s.DepositTargets)
+            {
+                if(!target.DepositsStarted) target.StartDepositDetection();
+                if(!target.DepositsComplete) allDone=false;
+            }
+            if(allDone || s.Issues.Count>0 && allDone)
+            {
+                foreach(var target in s.DepositTargets) s.Deposits.AddRange(target.DepositResult);
+                outbound=new(Status(s,"complete",null,now));
+                active=null; Flush(); return;
+            }
+            return;
+        }
         if(now<resumeAt || !hasTime()) return;
         if(s.Plans.Count==0)
         {
@@ -118,6 +143,28 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
         }
         Flush();
     }
+    private void StartDeposits(IVoxelWorld world,VoxelRequest r,long now)
+    {
+        try
+        {
+            var pose=world.FindGrid(r.GridId);
+            if(pose==null) { Reject(r,"grid_not_found",now); return; }
+            var catalog=world.Discover();
+            var typed=catalog.Storages.Where(st=>st is { DepositsComplete: false } or { DepositsStarted: false }).ToList();
+            var issues=catalog.Issues.ToList();
+            if(typed.Count==0) issues.Add("no_typed_storage_for_deposits");
+            active=new(r,pose,new Queue<Plan>(),issues.ToArray())
+            {
+                DepositsMode=true,
+                DepositTargets=typed,
+            };
+            var legend=catalog.Storages.Select(st=>st.MaterialLegend).FirstOrDefault(l=>l!=null);
+            if(legend!=null) active.MaterialLegend=legend.Select(kv=>kv.Key+"="+kv.Value).ToArray();
+            outbound=new(Status(active,"scanning",null,now));
+        }
+        catch(Exception e) { Reject(r,e.GetBaseException().Message,now); }
+    }
+
     private void Start(IVoxelWorld world,VoxelRequest r,long now)
     {
         try

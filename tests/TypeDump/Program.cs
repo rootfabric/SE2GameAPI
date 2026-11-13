@@ -10,6 +10,8 @@ var sim = AssemblyDefinition.ReadAssembly(Path.Combine(dir, "Game2.Simulation.dl
     new ReaderParameters { AssemblyResolver = resolver });
 var voxels = AssemblyDefinition.ReadAssembly(Path.Combine(dir, "VRage.Voxels.dll"),
     new ReaderParameters { AssemblyResolver = resolver });
+var library = AssemblyDefinition.ReadAssembly(Path.Combine(dir, "VRage.Library.dll"),
+    new ReaderParameters { AssemblyResolver = resolver });
 static IEnumerable<TypeDefinition> All(TypeDefinition t)
 {
     yield return t;
@@ -17,10 +19,10 @@ static IEnumerable<TypeDefinition> All(TypeDefinition t)
 }
 foreach (var name in args)
 {
-    foreach (var asm2 in new[] { voxels, sim })
+    foreach (var asm2 in new[] { voxels, sim, library })
     {
         var matches = asm2.MainModule.Types.SelectMany<TypeDefinition, TypeDefinition>(All)
-            .Where(t => t.Name == name).ToList();
+            .Where(t => t.Name == name || t.FullName.EndsWith(name)).ToList();
         foreach (var t in matches)
         {
             Console.WriteLine("=== " + asm2.Name.Name + ": " + t.FullName);

@@ -1,5 +1,8 @@
+using System.Collections.Immutable;
+using System.Reflection;
 using Keen.VRage.Library.Mathematics;
 using Keen.VRage.Voxels.Components;
+using Keen.VRage.Voxels.Definitions;
 using Keen.VRage.Voxels.Storage;
 namespace SE2GameAPI.Game.Voxels;
 
@@ -95,6 +98,74 @@ internal sealed class TypedVoxelStorage : IVoxelStorage
     private Keen.VRage.Voxels.Definitions.VoxelMaterialDefinitionPostProcessor? MaterialProcessor()
         => ReflectionVoxelStorage.Get(component,"MaterialProcessor")
             as Keen.VRage.Voxels.Definitions.VoxelMaterialDefinitionPostProcessor;
+
+    // ── Engine deposit detection (DetectMaterialDeposits) ─────────────────────
+    // Keen's own Task type (a struct): poll IsCompleted across scene ticks, never block.
+    private bool depositsStarted;
+    private bool depositsEmpty; // processor/materials unavailable: complete immediately with no deposits
+    private Keen.VRage.Library.Threading.Task<
+        Keen.VRage.Library.Collections.PooledList<Keen.VRage.Voxels.Components.VoxelMaterialDeposit>> depositTask;
+    public bool DepositsStarted => depositsStarted;
+    public bool DepositsComplete => depositsStarted && (depositsEmpty || depositTask.IsCompleted);
+    public List<VoxelDeposit> DepositResult
+    {
+        get
+        {
+            var result = new List<VoxelDeposit>();
+            if (!DepositsComplete) return result;
+            try
+            {
+                if (!depositTask.TryGetResult(out var list) || list == null) return result;
+                foreach (var deposit in list)
+                {
+                    try
+                    {
+                        var bounds = deposit.Bounds;
+                        result.Add(new(deposit.Material.Name.ToString(),
+                            [bounds.Min.X, bounds.Min.Y, bounds.Min.Z],
+                            [bounds.Max.X, bounds.Max.Y, bounds.Max.Z],
+                            Id, Frame.Origin.Array, Frame.X.Array, Frame.Y.Array, Frame.Z.Array));
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            return result;
+        }
+    }
+    public void StartDepositDetection()
+    {
+        if (depositsStarted) return;
+        depositsStarted = true;
+        try
+        {
+            var processor = MaterialProcessor();
+            if (processor == null) { depositsEmpty = true; return; }
+            var definitions = DefinitionsFromProcessor(processor);
+            if (definitions.Count == 0) { depositsEmpty = true; return; }
+            var materials = ImmutableList.CreateRange(definitions);
+            var center = Frame.World(new(Size.X / 2.0, Size.Y / 2.0, Size.Z / 2.0));
+            var diagonal = Math.Sqrt(Size.X * Size.X + Size.Y * Size.Y + Size.Z * Size.Z);
+            var voxel = Math.Sqrt(V3.Dot(Frame.X, Frame.X));
+            var sphere = new BoundingSphereD(new Vector3D(center.X, center.Y, center.Z), 0.5 * diagonal * voxel + 2.0);
+            depositTask = component.DetectMaterialDeposits(sphere, materials);
+        }
+        catch { depositsEmpty = true; }
+    }
+    private static List<VoxelMaterialDefinition> DefinitionsFromProcessor(
+        Keen.VRage.Voxels.Definitions.VoxelMaterialDefinitionPostProcessor processor)
+    {
+        // All materials: stone clusters map asteroid obstacles, ore names mark mineable veins.
+        // Clients filter by name; single-voxel stone deposits are the price of the obstacle map.
+        var result=new List<VoxelMaterialDefinition>();
+        var field=processor.GetType().GetField("_voxelMaterialByIndex",
+            BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic);
+        if(field?.GetValue(processor) is System.Collections.IDictionary map)
+            foreach(var value in map.Values)
+                if(value is VoxelMaterialDefinition definition)
+                    result.Add(definition);
+        return result;
+    }
     private static Dictionary<byte,string> BuildLegend(Keen.VRage.Voxels.Definitions.VoxelMaterialDefinitionPostProcessor processor)
     {
         var result=new Dictionary<byte,string>();
