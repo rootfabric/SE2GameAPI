@@ -48,6 +48,7 @@ internal static class AsteroidIndex
     internal static List<VoxelAsteroid> ReadRegisteredBodies(object session)
     {
         var result = new List<VoxelAsteroid>();
+        Diagnostics = null; // fresh diagnostics for this path
         object? probe = null;
         var componentsEntity = ReflectionVoxelStorage.Get(session, "SessionComponents");
         var components = componentsEntity == null ? null
