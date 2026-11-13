@@ -90,14 +90,12 @@ internal static class AsteroidIndex
                     value = unwrapped;
                 }
                 var typeName = value.GetType().Name;
-                // The generator itself is registered as a probe provider (Server variant
-                // lives in VRage.Game, not VRage.Core.Game) — capture it and bail out;
-                // the caller will switch to the seed-sector path.
+                // The generator itself is registered as a probe provider (Server variant,
+                // VRage.Game) — skip it; we want voxel storage bodies only.
                 if (typeName.Contains("ProceduralGenerator"))
                 {
-                    generator = value;
-                    Diagnostics = "generator_via_probe";
-                    return (result, value);
+                    Diagnostics = "skipped_generator";
+                    continue;
                 }
                 var baseName = value.GetType().BaseType?.Name ?? "";
                 if (typeName != "VoxelStorageComponentBase" && !baseName.Contains("VoxelStorageComponent"))

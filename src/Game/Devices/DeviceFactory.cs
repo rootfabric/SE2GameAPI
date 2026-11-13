@@ -17,9 +17,9 @@ internal static class DeviceFactory
         if (block.Definition.DebugNameShort.StartsWith("CargoContainer", StringComparison.Ordinal))
         {
             var cargoFunctional = block.Entity.Components.OfType<FunctionalBlockComponent>().FirstOrDefault();
-            var cargoInventory = block.Entity.Components.OfType<InventoryComponent>().FirstOrDefault();
-            if (cargoFunctional != null && cargoInventory != null)
-                return new InventoryDevice(cargoFunctional, cargoInventory, "cargo", registry);
+            var cargoInventories = block.Entity.Components.OfType<InventoryComponent>().ToArray();
+            if (cargoFunctional != null && cargoInventories.Length > 0)
+                return new InventoryDevice(cargoFunctional, cargoInventories, "cargo", registry);
         }
         var power = block.Entity.TryGet<PowerableBlockComponent>();
         if (power == null)
@@ -55,8 +55,21 @@ internal static class DeviceFactory
         if (antenna != null) return new BooleanPropertyDevice(power, "antenna", "set_broadcast",
             "antenna.broadcast", () => antenna.BroadcastCustomMessage, v => antenna.BroadcastCustomMessage = v);
         var converter = block.Entity.TryGet<ItemToResourceConverterComponent>();
-        if (converter != null) return new BooleanPropertyDevice(power, block.Definition.DebugNameShort.Split('_')[0].StartsWith("Reactor") ? "Reactor" : "O2H2Generator", "set_processing",
-            "converter.processing", () => converter.IsProcessingResources, v => converter.IsProcessingResources = v);
+        if (converter != null)
+        {
+            // Reactors/O2H2 generators store fuel in an inventory — expose it as an
+            // InventoryDevice so fuel items are readable and transferable.
+            var fuelInventories = block.Entity.Components.OfType<InventoryComponent>().ToArray();
+            var functionalBlock = block.Entity.Components.OfType<FunctionalBlockComponent>().FirstOrDefault();
+            if (fuelInventories.Length > 0 && functionalBlock != null)
+            {
+                string family2 = block.Definition.DebugNameShort.Split('_')[0].StartsWith("Reactor", StringComparison.Ordinal)
+                    ? "Reactor" : "O2H2Generator";
+                return new InventoryDevice(functionalBlock, fuelInventories, family2, registry);
+            }
+            return new BooleanPropertyDevice(power, block.Definition.DebugNameShort.Split('_')[0].StartsWith("Reactor") ? "Reactor" : "O2H2Generator", "set_processing",
+                "converter.processing", () => converter.IsProcessingResources, v => converter.IsProcessingResources = v);
+        }
         var resource = block.Entity.TryGet<ResourceContainerComponent>();
         if (resource != null && block.Definition.DebugNameShort.StartsWith("Battery", StringComparison.Ordinal))
             return new ResourcePowerDevice(power, "Battery", resource);
