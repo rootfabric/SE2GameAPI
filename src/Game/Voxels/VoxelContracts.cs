@@ -2,7 +2,8 @@ namespace SE2GameAPI.Game.Voxels;
 
 // Wire types contain values only. No engine objects are sent to the Redis worker.
 public sealed record VoxelRequest(string RequestId, string Epoch, string GridId,
-    long ExpiresAtMs, string Action = "scan", double Radius = 32, bool Fresh = false);
+    long ExpiresAtMs, string Action = "scan", double Radius = 32, bool Fresh = false,
+    double[]? Center = null);
 public sealed record VoxelPose(string GridId, string GridName, double[] Position);
 public sealed record VoxelTile(int Index, string StorageId, int[] Min, int[] Size,
     double[] Origin, double[] AxisX, double[] AxisY, double[] AxisZ,

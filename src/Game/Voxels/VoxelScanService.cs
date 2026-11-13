@@ -255,12 +255,26 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
         try
         {
             var pose=world.FindGrid(r.GridId);
-            if(pose==null) { Reject(r,"grid_not_found",now); return; }
-            if(pose.Position.Length!=3 || pose.Position.Any(v=>!double.IsFinite(v)))
-                throw new InvalidOperationException("invalid_grid_position");
+            if(pose==null && r.Center==null) { Reject(r,"grid_not_found",now); return; }
+            // Optional explicit center: scan around an arbitrary point (e.g. an indexed
+            // asteroid far from the anchor grid).
+            V3 center;
+            if(r.Center!=null)
+            {
+                if(r.Center.Length!=3 || r.Center.Any(v=>!double.IsFinite(v)))
+                    throw new InvalidOperationException("invalid_center");
+                center=new V3(r.Center[0],r.Center[1],r.Center[2]);
+                pose ??= new VoxelPose(r.GridId,"asteroid",[center.X,center.Y,center.Z]);
+            }
+            else
+            {
+                if(pose==null) { Reject(r,"grid_not_found",now); return; }
+                if(pose.Position.Length!=3 || pose.Position.Any(v=>!double.IsFinite(v)))
+                    throw new InvalidOperationException("invalid_grid_position");
+                center=new V3(pose.Position[0],pose.Position[1],pose.Position[2]);
+            }
             var catalog=world.Discover();
             if(catalog.Storages.Length>MaxStorages) throw new InvalidOperationException("catalogue_limit");
-            var center=new V3(pose.Position[0],pose.Position[1],pose.Position[2]);
             var plans=new List<Plan>();
             foreach(var storage in catalog.Storages)
             {
