@@ -40,7 +40,8 @@ internal sealed class TypedVoxelStorage : IVoxelStorage
         if(!frame.Valid) return null;
         return new(id,component,size,frame,alive);
     }
-    public byte[] Read(I3 min, I3 size)
+    public byte[] Read(I3 min, I3 size) => Read(min, size, 0);
+    public byte[] Read(I3 min, I3 size, int lod)
     {
         if(!alive()) throw new InvalidOperationException("voxel_entity_unloaded");
         if(size.X<=0||size.Y<=0||size.Z<=0||size.X>16||size.Y>16||size.Z>16||
@@ -51,7 +52,7 @@ internal sealed class TypedVoxelStorage : IVoxelStorage
         try
         {
             var flags=VoxelRequestFlags.DefaultRequestFlags;
-            storage.ReadRange(ref data,StorageDataTypeFlags.Content,0,
+            storage.ReadRange(ref data,StorageDataTypeFlags.Content,lod,
                 new Vector3I(min.X,min.Y,min.Z),
                 new Vector3I(min.X+size.X-1,min.Y+size.Y-1,min.Z+size.Z-1),ref flags);
             var result=new byte[size.Count]; int i=0;
@@ -61,7 +62,8 @@ internal sealed class TypedVoxelStorage : IVoxelStorage
         }
         finally { data.Dispose(); }
     }
-    public byte[]? ReadMaterials(I3 min, I3 size)
+    public byte[]? ReadMaterials(I3 min, I3 size) => ReadMaterials(min, size, 0);
+    public byte[]? ReadMaterials(I3 min, I3 size, int lod)
     {
         if(!alive()) return null;
         var processor=MaterialProcessor();
@@ -72,7 +74,7 @@ internal sealed class TypedVoxelStorage : IVoxelStorage
         try
         {
             var flags=VoxelRequestFlags.DefaultRequestFlags;
-            storage.ReadRange(ref data,StorageDataTypeFlags.ContentAndMaterial,0,
+            storage.ReadRange(ref data,StorageDataTypeFlags.ContentAndMaterial,lod,
                 new Vector3I(min.X,min.Y,min.Z),
                 new Vector3I(min.X+size.X-1,min.Y+size.Y-1,min.Z+size.Z-1),ref flags);
             var result=new byte[size.Count]; int i=0;

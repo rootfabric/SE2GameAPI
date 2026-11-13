@@ -3,12 +3,12 @@ namespace SE2GameAPI.Game.Voxels;
 // Wire types contain values only. No engine objects are sent to the Redis worker.
 public sealed record VoxelRequest(string RequestId, string Epoch, string GridId,
     long ExpiresAtMs, string Action = "scan", double Radius = 32, bool Fresh = false,
-    double[]? Center = null);
+    double[]? Center = null, int Lod = 0);
 public sealed record VoxelPose(string GridId, string GridName, double[] Position);
 public sealed record VoxelTile(int Index, string StorageId, int[] Min, int[] Size,
     double[] Origin, double[] AxisX, double[] AxisY, double[] AxisZ,
     byte[] Content, long MeasuredAtMs, bool Cached, string? StorageRevision,
-    byte[]? Material = null);
+    byte[]? Material = null, int Lod = 0);
 public sealed record VoxelDeposit(string Material, double[] Min, double[] Max, string StorageId,
     double[] FrameOrigin, double[] AxisX, double[] AxisY, double[] AxisZ);
 // Deterministic asteroid computed from the world seed — no proximity required (SE1-style index).
@@ -63,9 +63,9 @@ internal interface IVoxelStorage
     VoxelFrame Frame { get; }
     string? Revision { get; }
     // Must be called on the scene/DCS thread. Returns a new owned array, LOD0, x fastest.
-    byte[] Read(I3 min, I3 size);
+    byte[] Read(I3 min, I3 size, int lod);
     // Optional material channel (byte index per voxel); null when the storage cannot provide it.
-    byte[]? ReadMaterials(I3 min, I3 size) => null;
+    byte[]? ReadMaterials(I3 min, I3 size, int lod) => null;
     // Optional legend: material index -> readable name ("12=IronOre").
     IReadOnlyDictionary<byte, string>? MaterialLegend => null;
     // Optional engine deposit detection (all ore deposits of this storage).

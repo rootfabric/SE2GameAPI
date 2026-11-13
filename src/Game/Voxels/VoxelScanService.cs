@@ -7,7 +7,7 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
 {
     internal const int TileEdge=16, MaxTiles=512, MaxStorages=64, MaxCacheTiles=512;
     internal const long CacheAgeMs=5000;
-    private sealed record Plan(IVoxelStorage Storage, I3 Min, I3 Size);
+    private sealed record Plan(IVoxelStorage Storage, I3 Min, I3 Size, int Lod);
     private sealed record IdentityStamp(long Value);
     private ConditionalWeakTable<object,IdentityStamp> identities=new();
     private long nextIdentity;
@@ -80,11 +80,12 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
                 double.IsFinite(r.Radius) && r.Radius>=1 && r.Radius<=128 &&
                 r.ExpiresAtMs>now && r.ExpiresAtMs<=now+120000)
                 StartDeposits(world,r,now);
-            else if(r.Action!="scan" || string.IsNullOrWhiteSpace(r.GridId) ||
-                !double.IsFinite(r.Radius) || r.Radius<1 || r.Radius>128 ||
-                r.ExpiresAtMs<=now || r.ExpiresAtMs>now+120000)
+            else if(r.Action=="scan" && r.Lod>=0 && r.Lod<=4 && !string.IsNullOrWhiteSpace(r.GridId) &&
+                double.IsFinite(r.Radius) && r.Radius>=1 && r.Radius<=128*(1<<r.Lod) &&
+                r.ExpiresAtMs>now && r.ExpiresAtMs<=now+120000)
+                Start(world,r,now);
+            else
                 Reject(r,"invalid_request",now);
-            else Start(world,r,now);
             Flush(); return; // Never combine catalogue discovery and a storage read in one turn.
         }
         if(active==null) return;
@@ -146,7 +147,7 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
             else
             {
                 var timer=Stopwatch.StartNew();
-                try { data=p.Storage.Read(p.Min,p.Size); material=p.Storage.ReadMaterials(p.Min,p.Size); }
+                try { data=p.Storage.Read(p.Min,p.Size,p.Lod); material=p.Storage.ReadMaterials(p.Min,p.Size,p.Lod); }
                 finally
                 {
                     timer.Stop(); s.Reads++; s.MaxReadMs=Math.Max(s.MaxReadMs,timer.Elapsed.TotalMilliseconds);
@@ -289,13 +290,21 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
                 var lo=new I3(Lower(points.Min(p=>p.X),storage.Size.X),Lower(points.Min(p=>p.Y),storage.Size.Y),Lower(points.Min(p=>p.Z),storage.Size.Z));
                 var hi=new I3(Upper(points.Max(p=>p.X),storage.Size.X),Upper(points.Max(p=>p.Y),storage.Size.Y),Upper(points.Max(p=>p.Z),storage.Size.Z));
                 if(lo.X>=hi.X || lo.Y>=hi.Y || lo.Z>=hi.Z) continue;
+                // Coarse-voxel mode: lod>0 samples every 2^lod-th voxel (LOD pyramid),
+                // so the same 512-tile budget covers a much larger volume.
+                var lod=Math.Clamp(r.Lod,0,6);
+                var step=1<<lod;
+                var lodSize=new I3(storage.Size.X/step,storage.Size.Y/step,storage.Size.Z/step);
+                var lodLo=new I3(lo.X/step,lo.Y/step,lo.Z/step);
+                var lodHi=new I3(Math.Min(hi.X/step,lodSize.X),Math.Min(hi.Y/step,lodSize.Y),Math.Min(hi.Z/step,lodSize.Z));
+                if(lodLo.X>=lodHi.X || lodLo.Y>=lodHi.Y || lodLo.Z>=lodHi.Z) continue;
                 // Align tiles to storage, not the moving grid, so overlapping requests reuse the cache.
-                for(int z=lo.Z/TileEdge*TileEdge;z<hi.Z;z+=TileEdge)
-                for(int y=lo.Y/TileEdge*TileEdge;y<hi.Y;y+=TileEdge)
-                for(int x=lo.X/TileEdge*TileEdge;x<hi.X;x+=TileEdge)
+                for(int z=lodLo.Z/TileEdge*TileEdge;z<lodHi.Z;z+=TileEdge)
+                for(int y=lodLo.Y/TileEdge*TileEdge;y<lodHi.Y;y+=TileEdge)
+                for(int x=lodLo.X/TileEdge*TileEdge;x<lodHi.X;x+=TileEdge)
                 {
-                    var size=new I3(Math.Min(TileEdge,storage.Size.X-x),Math.Min(TileEdge,storage.Size.Y-y),Math.Min(TileEdge,storage.Size.Z-z));
-                    plans.Add(new(storage,new(x,y,z),size));
+                    var size=new I3(Math.Min(TileEdge,lodSize.X-x),Math.Min(TileEdge,lodSize.Y-y),Math.Min(TileEdge,lodSize.Z-z));
+                    plans.Add(new(storage,new(x,y,z),size,r.Lod));
                     if(plans.Count>MaxTiles) throw new InvalidOperationException("area_too_large_reduce_radius");
                 }
             }

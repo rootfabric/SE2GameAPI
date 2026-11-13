@@ -58,8 +58,9 @@ internal sealed class ReflectionVoxelStorage : IVoxelStorage
             Expression.Call(d,get,v)),obj,x,y,z).Compile();
     }
 
-    public byte[] Read(I3 min,I3 size)
+    public byte[] Read(I3 min,I3 size,int lod)
     {
+        if(lod!=0) throw new NotSupportedException("lod_read_requires_typed_adapter");
         if(!alive()) throw new InvalidOperationException("voxel_entity_unloaded");
         if(size.X<=0 || size.Y<=0 || size.Z<=0 || size.X>16 || size.Y>16 || size.Z>16 ||
             min.X<0 || min.Y<0 || min.Z<0 || (long)min.X+size.X>Size.X || (long)min.Y+size.Y>Size.Y || (long)min.Z+size.Z>Size.Z)
