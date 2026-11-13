@@ -65,12 +65,26 @@ internal static class AsteroidIndex
         if (probe == null) { Diagnostics = "probe_unavailable"; return result; }
         var providers = ReflectionVoxelStorage.Get(probe, "_preloadableProviders") as IDictionary;
         if (providers == null) { Diagnostics = "providers_unavailable"; return result; }
-        foreach (var value in providers.Values)
+        foreach (var entry in providers.Values)
         {
             try
             {
-                // Reflection-only: works without compile-time game DLL references
-                // (VoxelTests compiles this file without VRage assemblies).
+                // Values are PreloadableInfo wrappers; unwrap to the ISpaceProbePreloadable field.
+                var value = entry;
+                if (entry.GetType().Name == "PreloadableInfo")
+                {
+                    object? unwrapped = null;
+                    foreach (var field in entry.GetType().GetFields(M))
+                    {
+                        var candidate = field.GetValue(entry);
+                        if (candidate != null && candidate.GetType().IsClass
+                            && !candidate.GetType().IsPrimitive && candidate is not string
+                            && candidate.GetType().Name != "Nullable`1")
+                        { unwrapped = candidate; break; }
+                    }
+                    if (unwrapped == null) continue;
+                    value = unwrapped;
+                }
                 var typeName = value.GetType().Name;
                 var baseName = value.GetType().BaseType?.Name ?? "";
                 if (typeName != "VoxelStorageComponentBase" && !baseName.Contains("VoxelStorageComponent"))
