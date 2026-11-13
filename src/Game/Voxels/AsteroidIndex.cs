@@ -68,23 +68,34 @@ internal static class AsteroidIndex
         {
             try
             {
-                if (value is not Keen.VRage.Voxels.Components.VoxelStorageComponentBase storage)
+                // Reflection-only: works without compile-time game DLL references
+                // (VoxelTests compiles this file without VRage assemblies).
+                var typeName = value.GetType().Name;
+                var baseName = value.GetType().BaseType?.Name ?? "";
+                if (typeName != "VoxelStorageComponentBase" && !baseName.Contains("VoxelStorageComponent"))
                 {
                     if (result.Count == 0 && Diagnostics == null)
                         Diagnostics = "provider_type:" + value.GetType().FullName;
                     continue;
                 }
-                var size = storage.Storage?.Size;
-                if (size == null) continue;
-                var pivot = storage.ComputeCenteredTransform();
-                var voxel = storage.VoxelSize;
-                var half = new Keen.VRage.Library.Mathematics.Vector3D(
-                    size.Value.X * voxel * .5, size.Value.Y * voxel * .5, size.Value.Z * voxel * .5);
-                var center = pivot.Position;
+                var storage = ReflectionVoxelStorage.Get(value, "Storage");
+                var sizeRaw = storage == null ? null : ReflectionVoxelStorage.Get(storage, "Size");
+                if (sizeRaw == null) continue;
+                double S(string axis) => Convert.ToDouble(sizeRaw.GetType().GetField(axis)!.GetValue(sizeRaw));
+                var voxel = Convert.ToDouble(ReflectionVoxelStorage.Get(value, "VoxelSize") ?? 1.0);
+                var compute = value.GetType().GetMethod("ComputeCenteredTransform", M);
+                if (compute == null) continue;
+                var transform = compute.Invoke(value, null);
+                if (transform == null) continue;
+                double P(string axis) => Convert.ToDouble(
+                    transform.GetType().GetField("Position")!.GetValue(transform)!.GetType().GetField(axis)!.GetValue(
+                        transform.GetType().GetField("Position")!.GetValue(transform)));
+                var halfX = S("X") * voxel * .5; var halfY = S("Y") * voxel * .5; var halfZ = S("Z") * voxel * .5;
+                var (cx, cy, cz) = (P("X"), P("Y"), P("Z"));
                 result.Add(new(
-                    [center.X, center.Y, center.Z],
-                    [center.X - half.X, center.Y - half.Y, center.Z - half.Z],
-                    [center.X + half.X, center.Y + half.Y, center.Z + half.Z],
+                    [cx, cy, cz],
+                    [cx - halfX, cy - halfY, cz - halfZ],
+                    [cx + halfX, cy + halfY, cz + halfZ],
                     "VoxelBody", 0, 0, 0, 0));
                 if (result.Count >= 512) break;
             }
