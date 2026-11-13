@@ -47,7 +47,9 @@ internal static class AsteroidIndex
     // Fallback for worlds without an active procedural generator (scenario worlds):
     // every voxel body registered in the SpaceProbe is enumerable with its world AABB,
     // including offloaded ones — giving SE1-style asteroid coordinates.
-    internal static List<VoxelAsteroid> ReadRegisteredBodies(object session)
+    // Returns the body list; if the procedural GENERATOR is found among the providers,
+    // it is returned instead and the list is empty (caller switches to seed sectors).
+    internal static (List<VoxelAsteroid> Bodies, object? Generator) ReadRegisteredBodies(object session)
     {
         var result = new List<VoxelAsteroid>();
         Diagnostics = null; // fresh diagnostics for this path
@@ -64,9 +66,9 @@ internal static class AsteroidIndex
             foreach (var component in components)
                 if (component.GetType().Name == "SpaceProbeSessionComponent")
                     probe = component;
-        if (probe == null) { Diagnostics = "probe_unavailable"; return result; }
+        if (probe == null) { Diagnostics = "probe_unavailable"; return (result, null); }
         var providers = ReflectionVoxelStorage.Get(probe, "_preloadableProviders") as IDictionary;
-        if (providers == null) { Diagnostics = "providers_unavailable"; return result; }
+        if (providers == null) { Diagnostics = "providers_unavailable"; return (result, null); }
         foreach (var entry in providers.Values)
         {
             try
@@ -95,7 +97,7 @@ internal static class AsteroidIndex
                 {
                     generator = value;
                     Diagnostics = "generator_via_probe";
-                    return result;
+                    return (result, value);
                 }
                 var baseName = value.GetType().BaseType?.Name ?? "";
                 if (typeName != "VoxelStorageComponentBase" && !baseName.Contains("VoxelStorageComponent"))
@@ -134,7 +136,7 @@ internal static class AsteroidIndex
         if (result.Count > 0) Diagnostics = null;
         if (result.Count >= 512) { }
         Diagnostics = result.Count > 0 ? null : Diagnostics ?? "providers_empty";
-        return result;
+        return (result, null);
     }
 
     internal static long SectorKeyInt(object gen, double[] position, out int sx, out int sy, out int sz)
