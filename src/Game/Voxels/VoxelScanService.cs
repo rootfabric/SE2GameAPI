@@ -188,7 +188,7 @@ internal sealed class VoxelScanService(IVoxelTransport transport)
                 // Scenario worlds: the generator may only be reachable through the
                 // SpaceProbe provider registry — read it (this also captures the generator).
                 var bodies=AsteroidIndex.ReadRegisteredBodies(session);
-                generator=AsteroidIndex.Generator(session); // captured via_probe?
+                generator=AsteroidIndex.CapturedGenerator; // captured via_probe?
                 if(generator==null && (bodies.Count>0 || AsteroidIndex.Diagnostics is null or "providers_empty"))
                 {
                     bodies.Sort((a,b)=>Dist2(a.Center,pose.Position).CompareTo(Dist2(b.Center,pose.Position)));

@@ -41,6 +41,8 @@ internal static class AsteroidIndex
     }
 
     internal static string? Diagnostics { get; private set; }
+    // Generator captured via the SpaceProbe registry (server variant lives in VRage.Game).
+    internal static object? CapturedGenerator => generator;
 
     // Fallback for worlds without an active procedural generator (scenario worlds):
     // every voxel body registered in the SpaceProbe is enumerable with its world AABB,
