@@ -11,12 +11,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="VRage.Physics"><HintPath>$(Game2)\VRage.Physics.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Multiplayer"><HintPath>$(Game2)\VRage.Multiplayer.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.Game"><HintPath>$(Game2)\VRage.Game.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Game2.Simulation"><HintPath>$(Game2)\Game2.Simulation.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.Core.Game"><HintPath>$(Game2)\VRage.Core.Game.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.DCS"><HintPath>$(Game2)\VRage.DCS.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.Core"><HintPath>$(Game2)\VRage.Core.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.Library"><HintPath>$(Game2)\VRage.Library.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Voxels"><HintPath>$(Game2)\VRage.Voxels.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" Version="2.8.31" />

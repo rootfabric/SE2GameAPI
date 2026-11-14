@@ -44,12 +44,13 @@ internal static class InventoryTransfer
     }
 }
 
-internal sealed class InventoryDevice(FunctionalBlockComponent block, InventoryComponent inventory, string family,
+internal sealed class InventoryDevice(FunctionalBlockComponent block, InventoryComponent[] inventories, string family,
     Dictionary<string, DeviceAdapter> registry) : DeviceAdapter, IInventorySource
 {
     private readonly FunctionalBlockComponent sourceBlock = block;
-    private readonly InventoryComponent sourceInventory = inventory;
-    public InventoryComponent? PrimaryInventory => sourceInventory;
+    private readonly InventoryComponent[] sourceInventories = inventories;
+    public InventoryComponent? PrimaryInventory =>
+        sourceInventories.FirstOrDefault(i => i.Items.Length > 0) ?? sourceInventories.FirstOrDefault();
     private readonly DEntity entityId = block.DEntity;
     private DeviceState? state;
     private string? fingerprint;
@@ -62,6 +63,7 @@ internal sealed class InventoryDevice(FunctionalBlockComponent block, InventoryC
     {
         if (!session.Scene.IsEntityAlive(entityId) || sourceBlock.IsDestroyed || sourceBlock.Grid.GridClosing ||
             !session.IsEntityInScene(sourceBlock.Entity)) return null;
+        var sourceInventory = PrimaryInventory ?? throw new InvalidOperationException("no_inventory");
         var items = sourceInventory.Items;
         // Limit inspection in one tick; large inventories need a paged adapter later.
         if (items.Length > 128) throw new InvalidOperationException("inventory_too_large_for_snapshot");
@@ -83,6 +85,6 @@ internal sealed class InventoryDevice(FunctionalBlockComponent block, InventoryC
     }
     public override Func<DeviceState, bool>? Apply(DeviceCommand command, DeviceState before)
     {
-        return InventoryTransfer.Apply(command, before, sourceInventory, Id, before.GridId, registry);
+        return InventoryTransfer.Apply(command, before, PrimaryInventory ?? throw new InvalidOperationException("no_inventory"), Id, before.GridId, registry);
     }
 }

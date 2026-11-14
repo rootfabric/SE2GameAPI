@@ -6,13 +6,19 @@ public sealed record DeviceCommand(string RequestId, string Epoch, string GridId
 public sealed record NavigationRequest(double[] Target, double[]? Forward = null, double[]? Up = null,
     string Mode = "flight", double MaxSpeed = 5, double PositionTolerance = 1,
     double HeadingToleranceDeg = 3, double TimeoutSeconds = 120, bool AlignCourse = false,
-    bool KeepControlOnPlayer = true);
+    bool KeepControlOnPlayer = true, bool EjectPilot = false);
 public sealed record DeviceState(string Id, string GridId, string GridName, string Name, string Type,
     bool Enabled, bool Working, bool Functional, long Revision, long MeasuredAtMs = 0, string? Status = null, string[]? Capabilities = null, object? Properties = null,
     InventoryTelemetry[]? Inventories = null);
 public sealed record InventoryItemTelemetry(int Index, string Definition, string Amount);
 public sealed record InventoryTelemetry(int Slot, string MassCurrent, string MassMaximum, InventoryItemTelemetry[] Items);
 public sealed record CommandResult(string RequestId, string Status, string? Error, DeviceState? ActualState);
+public sealed record ProjectionRequest(string RequestId, string Epoch, string GridId,
+    string Action = "create", string? TargetGridId = null, double[]? Offset = null,
+    int Count = 0, long ExpiresAtMs = 0, string? Mode = null);
+public sealed record ProjectionStatus(string RequestId, string Epoch, string GridId,
+    string State, string? Error, string? ProjectionEntityId, int Projections, int Materialized,
+    long UpdatedAtMs, double[]? WorldPosition = null);
 public sealed record BlockInventory(string GridId, string GridName, string BlockId,
     string Definition, string[] Components, string? Adapter);
 public sealed record BridgeSnapshot(string Epoch, string State, long SampledAtMs, DeviceState[] Devices,

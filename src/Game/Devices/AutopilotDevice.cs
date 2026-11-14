@@ -94,12 +94,12 @@ internal sealed class AutopilotDevice(CubeGridComponent grid) : DeviceAdapter
         // By default a seated player does not cancel the mission; opt back in with KeepControlOnPlayer=false.
         if (!value.KeepControlOnPlayer && HasPilot()) throw new InvalidOperationException("player_has_control");
         if (value.Mode is not ("flight" or "ground")) throw new ArgumentException("invalid_mode");
-        if (!double.IsFinite(value.MaxSpeed) || value.MaxSpeed is < .1 or > 50 ||
+        if (!double.IsFinite(value.MaxSpeed) || value.MaxSpeed is < .1 or > 80 ||
             !double.IsFinite(value.PositionTolerance) || value.PositionTolerance is < .05 or > 20 ||
             !double.IsFinite(value.HeadingToleranceDeg) || value.HeadingToleranceDeg is < .5 or > 30 ||
-            !double.IsFinite(value.TimeoutSeconds) || value.TimeoutSeconds is < 1 or > 600)
+            !double.IsFinite(value.TimeoutSeconds) || value.TimeoutSeconds is < 1 or > 3600)
             throw new ArgumentException("invalid_navigation_limits");
-        if ((destination-Position()).Length>10000) throw new ArgumentException("target_too_far");
+        if ((destination-Position()).Length>60000) throw new ArgumentException("target_too_far");
         if (value.Mode == "ground" && (value.MaxSpeed>10 || (destination-Position()).Length>1000))
             throw new ArgumentException("ground_limit_10mps_1000m");
         if (grid.Data.TryGet<OverriddenThrustData>(out var overridden) && P(overridden.DirectionalThrust).Length>1)
@@ -126,6 +126,10 @@ internal sealed class AutopilotDevice(CubeGridComponent grid) : DeviceAdapter
         if (!grid.Data.TryGet<ControlReferenceOrientation>(out originalReference))
             originalReference = new() { Orientation = Keen.VRage.Library.Mathematics.Quaternion.Identity };
         started=previousTick=Stopwatch.GetTimestamp(); settled=0; status="Navigating"; error=""; revision++;
+        // Script-priority mode: an optionally ejected pilot can no longer override ControlData.
+        if (value.EjectPilot)
+            foreach (var seat in seats.Where(s => s.HasPilot))
+                try { _ = seat.TryClearPilotAsync(); } catch { }
         // Stop existing aiming data so the angular velocity controller owns gyroscopes.
         grid.Data.TryRemove<TargetControlData>();
         grid.Data.Set(new ControlReferenceOrientation { Orientation = Keen.VRage.Library.Mathematics.Quaternion.Identity });
@@ -143,6 +147,11 @@ internal sealed class AutopilotDevice(CubeGridComponent grid) : DeviceAdapter
             if (grid.CubeBlockStorage.Version!=version) { Stop("Failed","grid_changed"); return; }
             // Player in a seat keeps the mission running by default; the controller keeps commanding.
             if (HasPilot() && !request!.KeepControlOnPlayer) { Stop("Cancelled","player_has_control"); return; }
+            // Script-priority mode: a re-seated pilot is ejected again so their zero input
+            // cannot overwrite the controller's ControlData.
+            if (HasPilot() && request!.EjectPilot)
+                foreach (var seat in seats.Where(s => s.HasPilot))
+                    try { _ = seat.TryClearPilotAsync(); } catch { }
             var body=grid.Data.Get<RigidBodyData>(); var mass=grid.Data.Get<RigidBodyMassProperties>();
             var velocity=P(body.LinearVelocity); var delta=target-Position(); var q=Rotation();
             distance=delta.Length;
@@ -184,6 +193,10 @@ internal sealed class AutopilotDevice(CubeGridComponent grid) : DeviceAdapter
     public void Shutdown(Session session) { if(Active && Alive(session)) Stop("Cancelled","plugin_shutdown"); }
     private void Stop(string result,string reason)
     {
+        if (result=="Stopped")
+            try { System.IO.File.AppendAllText(@"C:\SE2GameAPI\stop_trace.log",
+                DateTimeOffset.UtcNow.ToString("HH:mm:ss.fff")+" Stop(Stopped)\n"+Environment.StackTrace+"\n---\n"); }
+            catch { }
         if (Active)
         {
             grid.Data.Set(default(ControlData));
