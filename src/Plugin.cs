@@ -8,6 +8,7 @@ public sealed class Plugin : IPlugin, IDisposable
 {
     private readonly RedisGateway gateway;
     private readonly VoxelRedisGateway voxelGateway;
+    private readonly BuildRedisGateway buildGateway;
     private readonly DeviceBridge bridge;
     private readonly Timer timer;
     private int pending;
@@ -16,7 +17,8 @@ public sealed class Plugin : IPlugin, IDisposable
     {
         gateway = new RedisGateway(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SE2GameAPI"));
         voxelGateway = new VoxelRedisGateway();
-        bridge = new DeviceBridge(gateway, Guid.NewGuid().ToString("N"), voxelGateway);
+        buildGateway = new BuildRedisGateway();
+        bridge = new DeviceBridge(gateway, Guid.NewGuid().ToString("N"), voxelGateway, buildGateway);
         timer = new Timer(_ => Schedule(), null, 1000, 50);
     }
     private void Schedule()
@@ -33,5 +35,5 @@ public sealed class Plugin : IPlugin, IDisposable
         }
         catch { Interlocked.Exchange(ref pending, 0); }
     }
-    public void Dispose() { disposed = true; timer.Dispose(); bridge.Dispose(); voxelGateway.Dispose(); gateway.Dispose(); }
+    public void Dispose() { disposed = true; timer.Dispose(); bridge.Dispose(); voxelGateway.Dispose(); buildGateway.Dispose(); gateway.Dispose(); }
 }

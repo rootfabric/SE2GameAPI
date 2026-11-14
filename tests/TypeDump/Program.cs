@@ -13,18 +13,10 @@ static IEnumerable<TypeDefinition> All(TypeDefinition t)
 }
 var sim = AssemblyDefinition.ReadAssembly(Path.Combine(dir, "Game2.Simulation.dll"),
     new ReaderParameters { AssemblyResolver = resolver });
-var t = sim.MainModule.Types.SelectMany<TypeDefinition, TypeDefinition>(All)
-    .First(x => x.Name == "SeatComponent");
-Console.WriteLine($"=== {t.FullName}");
-foreach (var fd in t.Fields.Where(f => !f.IsStatic)) Console.WriteLine($"  field {fd.FieldType.Name} {fd.Name}");
-foreach (var p in t.Properties) Console.WriteLine($"  prop {p.PropertyType.Name} {p.Name}");
-foreach (var m in t.Methods.Where(m => !m.IsConstructor && !m.IsStatic))
-    Console.WriteLine($"  meth {m.ReturnType.Name} {m.Name}({string.Join(", ", m.Parameters.Select(pp => pp.ParameterType.Name))})");
-// also ISeat
-var iseat = sim.MainModule.Types.SelectMany<TypeDefinition, TypeDefinition>(All).FirstOrDefault(x => x.Name == "ISeat");
-if (iseat != null)
+var t = sim.MainModule.Types.SelectMany<TypeDefinition, TypeDefinition>(All).First(x => x.Name == "MissionSessionComponent");
+var m = t.Methods.First(x => x.Name == "TryConvertBlockToProjection");
+foreach (var ins in m.Body.Instructions)
 {
-    Console.WriteLine($"=== {iseat.FullName}");
-    foreach (var m in iseat.Methods) Console.WriteLine($"  meth {m.ReturnType.Name} {m.Name}");
-    foreach (var p in iseat.Properties) Console.WriteLine($"  prop {p.PropertyType.Name} {p.Name}");
+    if (ins.Operand is MethodReference mr && mr.Name == "Get")
+        Console.WriteLine($"{ins.OpCode.Name} {mr.DeclaringType.FullName}<{(mr as GenericInstanceMethod != null ? string.Join(",", ((GenericInstanceMethod)mr).GenericArguments.Select(a => a.FullName)) : "?")}>::{mr.Name}({string.Join(",", mr.Parameters.Select(p => p.ParameterType.Name))})");
 }

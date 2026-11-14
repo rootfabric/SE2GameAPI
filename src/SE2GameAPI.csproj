@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="VRage.Physics"><HintPath>$(Game2)\VRage.Physics.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Multiplayer"><HintPath>$(Game2)\VRage.Multiplayer.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.Game"><HintPath>$(Game2)\VRage.Game.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Game2.Simulation"><HintPath>$(Game2)\Game2.Simulation.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.Core.Game"><HintPath>$(Game2)\VRage.Core.Game.dll</HintPath><Private>false</Private></Reference>

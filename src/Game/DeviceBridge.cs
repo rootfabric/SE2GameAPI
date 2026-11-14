@@ -4,14 +4,16 @@ using Keen.VRage.Core.Game.Systems;
 using Keen.VRage.Library.Utils;
 using SE2GameAPI.Redis;
 using SE2GameAPI.Game.Voxels;
+using SE2GameAPI.Game.Constructions;
 namespace SE2GameAPI.Game;
 
-internal sealed class DeviceBridge(RedisGateway gateway, string runId, VoxelRedisGateway voxelGateway) : IDisposable
+internal sealed class DeviceBridge(RedisGateway gateway, string runId, VoxelRedisGateway voxelGateway, BuildRedisGateway buildGateway) : IDisposable
 {
     private DeviceRegistry registry = new();
     private TelemetryScheduler telemetry = new();
     private readonly CommandRouter router = new();
     private readonly VoxelScanService voxels = new(voxelGateway);
+    private readonly ProjectionService constructions = new();
     private Session? session;
     private int generation, registryGeneration = -1;
     private long pendingToken, sequence, ticks;
@@ -30,6 +32,7 @@ internal sealed class DeviceBridge(RedisGateway gateway, string runId, VoxelRedi
             session = current; generation++; Volatile.Write(ref pendingToken, 0);
         }
         voxelGateway.SetSession(Epoch, current != null && !current.IsUnloading);
+        buildGateway.SetSession(Epoch, current != null && !current.IsUnloading);
         if (current == null || current.IsUnloading)
         {
             gateway.Update(new(Epoch, "WAITING_FOR_WORLD", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), [], 0, maxMs, ticks == 0 ? 0 : totalMs / ticks, ticks, router.Applied, gateway.QueueDepth + router.Depth, registry.DiscoveryMs));
@@ -55,15 +58,26 @@ internal sealed class DeviceBridge(RedisGateway gateway, string runId, VoxelRedi
             }
             registry.Navigate(current, budget);
             // Same shared budget; no per-scanner timers. Navigation retains first priority.
-            for (int phase = 0; phase < 4 && budget.HasTime; phase++)
+            for (int phase = 0; phase < 5 && budget.HasTime; phase++)
             {
-                switch ((ticks + phase) % 4)
+                switch ((ticks + phase) % 5)
                 {
                     case 0: router.Run(current, Epoch, registry, gateway, budget); break;
                     case 1: registry.Discover(current, budget); break;
                     case 2: telemetry.Run(current, registry, budget); break;
                     case 3: voxels.Run(new Se2VoxelWorld(current), Epoch, () => budget.HasTime,
                         DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); break;
+                    case 4:
+                        while (budget.HasTime && buildGateway.TryRead(out var build))
+                            if (build != null)
+                            {
+                                constructions.Reset(generation);
+                                var status = await constructions.Run(current, Epoch, build,
+                                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                                if (!buildGateway.TryWrite(status))
+                                    buildGateway.TryWrite(status with { State = "failed", Error = "reply_channel_full" });
+                            }
+                        break;
                 }
             }
             error = null;
