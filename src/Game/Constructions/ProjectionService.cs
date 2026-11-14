@@ -85,6 +85,9 @@ internal sealed class ProjectionService
                 case "convert_block":
                     var spawner2 = Spawner(session) ?? throw new InvalidOperationException("spawner_unavailable");
                     return ConvertBlock(session, projectionsComponent, spawner2, epoch, r, now);
+                case "create_template":
+                    var spawner3 = Spawner(session) ?? throw new InvalidOperationException("spawner_unavailable");
+                    return CreateTemplate(session, projectionsComponent, spawner3, epoch, r, now);
                 case "list": return List(session, epoch, r, now);
                 case "materialize": return Materialize(session, projectionsComponent, epoch, r, now);
                 default: throw new InvalidOperationException("invalid_action");
@@ -218,6 +221,143 @@ internal sealed class ProjectionService
         // projection with it. Materialize from the ghost builds a copy.
         return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete", null,
             spawned.DEntity.ToString(), 1, 0, now);
+    }
+
+    // Hand-built template: an N x N steel plate made from the donor grid's most
+    // common (armor) block. No pre-made grid required — the bundle is assembled
+    // programmatically from a single cloned block OB.
+    private ProjectionStatus CreateTemplate(Session session, GridProjectionsSessionComponent projections,
+        IEntitySpawner spawner, string epoch, ProjectionRequest r, long now)
+    {
+        var donor = FindGrid(session, r.GridId) ?? throw new InvalidOperationException("donor_grid_not_found");
+        var host = string.IsNullOrWhiteSpace(r.TargetGridId) ? donor : FindGrid(session, r.TargetGridId!) ?? donor;
+        int n = Math.Clamp(r.Count > 0 ? r.Count : 3, 1, 8);
+        // 1. Serialize the donor grid to find an armor block OB + its local step.
+        var serializer = session.Scene.EntitySerializer;
+        var allocate = typeof(Keen.VRage.DCS.Builders.EntitySerializer)
+            .GetMethod("AllocateEmptyEOBFor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        var ob = (Keen.VRage.DCS.ObjectBuilders.EntityObjectBuilder)allocate!.Invoke(serializer, new object[] { donor.Entity })!;
+        serializer.Serialize(donor.Entity, ob);
+        var bundle = new EntityBundle();
+        bundle.Add(ob, donor.Entity, true);
+        var rootOb = bundle.RootBuilders[0];
+        var kids = Keen.VRage.Core.Game.Components.HierarchyComponentObjectBuilderExtensions.TryGetDirectChilds(rootOb);
+        if (kids.Length == 0) throw new InvalidOperationException("donor_has_no_blocks");
+        // 2. Group child OBs by Definition reference; the most common one is armor.
+        var byDefinition = new Dictionary<Keen.VRage.DCS.Definitions.EntityCompositeDefinition, List<Keen.VRage.DCS.ObjectBuilders.EntityObjectBuilder>>();
+        Keen.VRage.Library.Mathematics.Vector3D? reference = null;
+        var positions = new List<Keen.VRage.Library.Mathematics.Vector3D>();
+        for (int i = 0; i < kids.Length; i++)
+        {
+            var key = kids[i].Definition;
+            if (!byDefinition.TryGetValue(key!, out var list)) byDefinition[key!] = list = new();
+            list.Add(kids[i]);
+            foreach (var c in kids[i].ObjectBuilders)
+                if (c is Keen.VRage.Core.Game.Components.ChildTransformComponentObjectBuilder ct)
+                {
+                    var p = ct.Transform.Position;
+                    positions.Add(new(p.X, p.Y, p.Z));
+                    break;
+                }
+        }
+        // Steel plate: prefer "simple" blocks (no functional component OBs — armor).
+        bool Simple(Keen.VRage.DCS.ObjectBuilders.EntityObjectBuilder b) =>
+            !b.ObjectBuilders.Any(c => c != null && (c.GetType().Name.Contains("Thruster") ||
+                c.GetType().Name.Contains("Powerable") || c.GetType().Name.Contains("Gyroscope") ||
+                c.GetType().Name.Contains("Drill") || c.GetType().Name.Contains("Connector") ||
+                c.GetType().Name.Contains("Battery") || c.GetType().Name.Contains("Reactor") ||
+                c.GetType().Name.Contains("Door") || c.GetType().Name.Contains("Cockpit") ||
+                c.GetType().Name.Contains("Cargo") || c.GetType().Name.Contains("Conveyor")));
+        var simple = byDefinition.Where(kv => kv.Value.Any(Simple)).ToList();
+        var armorGroup = (simple.Count > 0
+            ? simple.OrderByDescending(kv => kv.Value.Count)
+            : byDefinition.OrderByDescending(kv => kv.Value.Count)).First().Value;
+        var template = armorGroup.First(Simple);
+        try { System.IO.File.AppendAllText(@"C:\SE2GameAPI\template_trace.log",
+            $"{DateTimeOffset.UtcNow:HH:mm:ss.fff} armor group={armorGroup.Count} template components=[{string.Join(",", template.ObjectBuilders.Select(c => c?.GetType().Name ?? "null"))}]\n"); } catch { }
+        // reference = the template's local position; step = minimal non-zero delta
+        foreach (var c in template.ObjectBuilders)
+            if (c is Keen.VRage.Core.Game.Components.ChildTransformComponentObjectBuilder ct2)
+            { var p = ct2.Transform.Position; reference = new(p.X, p.Y, p.Z); break; }
+        if (reference == null) throw new InvalidOperationException("template_block_has_no_transform");
+        double step = double.MaxValue;
+        for (int a = 0; a < positions.Count && a < 64; a++)
+            for (int b = 0; b < positions.Count && b < 64; b++)
+            {
+                if (a == b) continue;
+                var d = Keen.VRage.Library.Mathematics.Vector3D.Abs(positions[a] - positions[b]);
+                var min = Math.Min(Math.Min(d.X, d.Y), d.Z);
+                if (min > 1e-6) step = Math.Min(step, min);
+            }
+        if (step == double.MaxValue) step = 0.5; // small-grid fallback
+        // 3. Assemble: clean the grid root's children, add N*N clones, THEN bundle.
+        var gridOb = rootOb.DeepClone();
+        // Reset the root transform to identity: without it TransformInvBundle
+        // bakes the donor's world position into every local block coordinate.
+        foreach (var c in gridOb.ObjectBuilders)
+            if (c is Keen.VRage.Core.Game.Components.WorldTransformComponentObjectBuilder wt)
+            { var t = wt.Transform; t.Position = new(0, 0, 0); t.Orientation = Keen.VRage.Library.Mathematics.Quaternion.Identity; wt.Transform = t; }
+        foreach (var c in gridOb.ObjectBuilders)
+            if (c?.GetType().Name == "HierarchyComponentObjectBuilder")
+                try
+                {
+                    var childrenField = c.GetType().GetField("Children",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                    var children = childrenField?.GetValue(c);
+                    children?.GetType().GetMethod("Clear")?.Invoke(children, null);
+                }
+                catch { }
+        var addDirect = typeof(Keen.VRage.Core.Game.Components.HierarchyComponentObjectBuilderExtensions)
+            .GetMethods().First(m => m.Name == "AddDirectChild");
+        int made = 0;
+        double half = (n - 1) / 2.0;
+        for (int ix = 0; ix < n; ix++)
+            for (int iz = 0; iz < n; iz++)
+            {
+                var clone = template.DeepClone();
+                // Center the plate on the bundle origin: the spawn offset then
+                // controls the world position exactly (reference-free).
+                // X-Z plane: a horizontal base plate.
+                var pos = new Keen.VRage.Library.Mathematics.Vector3D(
+                    (ix - half) * step, 0, (iz - half) * step);
+                foreach (var c in clone.ObjectBuilders)
+                    if (c is Keen.VRage.Core.Game.Components.ChildTransformComponentObjectBuilder ct)
+                    {
+                        var t = ct.Transform;
+                        t.Position = new((float)pos.X, (float)pos.Y, (float)pos.Z);
+                        ct.Transform = t;
+                    }
+                addDirect.Invoke(null, new object[] { gridOb, clone });
+                made++;
+            }
+        var newBundle = new EntityBundle();
+        newBundle.Add(gridOb, donor.Entity, true);
+        // 4. Prepare + spawn near the host + attach.
+        var owner = host.Entity.TryGet<OwnershipComponent>()?.Owner ?? default;
+        if (owner == default)
+            foreach (var entity in session.GetEntitiesOfType<CubeGridComponent>())
+            {
+                var g = entity.TryGet<CubeGridComponent>();
+                var o = g?.Entity.TryGet<OwnershipComponent>()?.Owner;
+                if (o.HasValue && o.Value != default) { owner = o.Value; break; }
+            }
+        var projectionOb = projections.PrepareGridProjection(newBundle, owner)
+            ?? throw new InvalidOperationException("prepare_projection_failed");
+        var builder = DEntityBuilder.ForScene(session.Scene);
+        var spawned = spawner.SpawnEntity(projectionOb, builder)
+            ?? throw new InvalidOperationException("projection_spawn_failed");
+        var projection = spawned.TryGet<ProjectionSourceComponent>()
+            ?? throw new InvalidOperationException("projection_component_missing");
+        projections.AttachProjection(projection, host);
+        if (r.Offset is { Length: 3 } shift)
+        {
+            var target = host.Data.GetWorldTransform();
+            target.Position = new Keen.VRage.Library.Mathematics.Vector3D(
+                target.Position.X + shift[0], target.Position.Y + shift[1], target.Position.Z + shift[2]);
+            Keen.VRage.Core.Game.Data.EntityTransformFunctions.Teleport(spawned.Data, ref target);
+        }
+        return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete", null,
+            spawned.DEntity.ToString(), 1, made, now);
     }
 
     private ProjectionStatus List(Session session, string epoch, ProjectionRequest r, long now)

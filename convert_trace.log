@@ -1,225 +1,62 @@
-10:05:29.474 block found, grid=True, entity=True
-10:05:29.475 serializer: ok
-10:12:55.236 block found, grid=True, entity=True
-10:12:55.237 ob allocated
-10:12:55.237 serialized
-10:12:55.237 bundled
-10:12:55.237 owner: 1
-10:13:14.383 block found, grid=True, entity=True
-10:13:14.384 ob allocated
-10:13:14.384 serialized
-10:13:14.384 bundled
-10:13:14.384 owner: 1
-10:15:42.971 grid found
-10:16:55.620 grid found
-10:16:55.622 serialized
-10:16:55.622 bundled
-10:18:39.852 grid found
-10:18:39.853 serialized
-10:18:39.853 bundled
-10:18:39.853 owner: 0
-10:20:13.852 grid found
-10:20:13.853 serialized
-10:20:13.861 bundled
-10:20:13.862 owner: 0
-10:20:13.862 owner fallback: 1
-10:21:30.683 grid found
-10:21:30.684 serialized
-10:21:30.684 bundled roots=1
-10:21:30.684 owner: 0
-10:21:30.685 owner fallback: 1
-10:21:30.686 prepared
-10:21:30.693 spawned
-10:21:30.695 attached
-10:21:30.717 deleted source
-10:24:05.836 grid found
-10:24:05.837 serialized
-10:24:05.837 bundled roots=1
-10:24:05.837 owner: 0
-10:24:05.838 owner fallback: 1
-10:24:05.839 prepared
-10:24:05.846 spawned
-10:24:05.847 attached
-10:31:46.972 grid found
-10:31:46.973 serialized
-10:31:46.973 bundled roots=1
-10:31:46.973 owner: 0
-10:31:46.974 owner fallback: 1
-10:31:46.975 prepared
-10:31:46.982 spawned
-10:31:46.984 attached
-10:33:34.768 grid found
-10:33:34.769 serialized
-10:33:34.769 bundled roots=1
-10:33:34.769 owner: 0
-10:33:34.770 owner fallback: 1
-10:33:34.771 prepared
-10:33:34.779 spawned
-10:33:34.780 attached
-10:35:22.102 grid found
-10:35:22.103 serialized
-10:35:22.104 bundled roots=1
-10:35:22.104 owner: 0
-10:35:22.104 owner fallback: 1
-10:35:22.105 prepared
-10:35:22.112 spawned
-10:35:22.113 attached
-10:36:46.768 grid found
-10:36:46.769 serialized
-10:36:46.769 bundled roots=1
-10:36:46.770 owner: 0
-10:36:46.770 owner fallback: 1
-10:36:46.771 prepared
-10:36:46.778 spawned
-10:36:46.779 attached
-10:36:50.767 materialize: roots=1 rootChildren=148
-10:39:11.604 grid found
-10:39:11.605 serialized
-10:39:11.605 bundled roots=1
-10:39:11.605 owner: 0
-10:39:11.605 owner fallback: 1
-10:39:11.606 prepared
-10:39:11.614 spawned
-10:39:11.615 attached
-10:39:11.615 teleported
-10:39:15.570 materialize: roots=1 rootChildren=148
-10:40:59.136 grid found
-10:40:59.138 serialized
-10:40:59.138 bundled roots=1
-10:40:59.138 owner: 0
-10:40:59.138 owner fallback: 1
-10:40:59.139 prepared
-10:40:59.147 spawned
-10:40:59.149 attached
-10:40:59.149 teleported
-10:41:03.036 materialize: roots=1 rootChildren=148
-10:41:51.833 grid found
-10:41:51.834 serialized
-10:41:51.834 bundled roots=1
-10:41:51.834 owner: 0
-10:41:51.834 owner fallback: 1
-10:41:51.835 prepared
-10:41:51.835 spawned
-10:41:51.835 attached
-10:41:51.836 teleported
-10:41:55.833 materialize: roots=1 rootChildren=148
-10:42:24.583 grid found
-10:42:24.583 serialized
-10:42:24.584 bundled roots=1
-10:42:24.584 owner: 0
-10:42:24.584 owner fallback: 1
-10:42:24.584 prepared
-10:42:24.584 spawned
-10:42:24.585 attached
-10:42:24.585 teleported
-10:42:27.582 materialize: roots=1 rootChildren=148
-10:42:28.632 grid found
-10:42:28.633 serialized
-10:42:28.633 bundled roots=1
-10:42:28.633 owner: 0
-10:42:28.633 owner fallback: 1
-10:42:28.633 prepared
-10:42:28.634 spawned
-10:42:28.634 attached
-10:42:28.634 teleported
-10:42:31.632 materialize: roots=1 rootChildren=148
-10:42:32.632 grid found
-10:42:32.633 serialized
-10:42:32.633 bundled roots=1
-10:42:32.633 owner: 0
-10:42:32.633 owner fallback: 1
-10:42:32.634 prepared
-10:42:32.634 spawned
-10:42:32.634 attached
-10:42:32.634 teleported
-10:42:35.632 materialize: roots=1 rootChildren=148
-10:42:36.632 grid found
-10:42:36.633 serialized
-10:42:36.633 bundled roots=1
-10:42:36.633 owner: 0
-10:42:36.633 owner fallback: 1
-10:42:36.633 prepared
-10:42:36.634 spawned
-10:42:36.634 attached
-10:42:36.634 teleported
-10:42:39.632 materialize: roots=1 rootChildren=148
-10:42:40.632 grid found
-10:42:40.633 serialized
-10:42:40.633 bundled roots=1
-10:42:40.633 owner: 0
-10:42:40.634 owner fallback: 1
-10:42:40.634 prepared
-10:42:40.634 spawned
-10:42:40.634 attached
-10:42:40.634 teleported
-10:42:43.682 materialize: roots=1 rootChildren=148
-10:42:57.532 grid found
-10:42:57.533 serialized
-10:42:57.533 bundled roots=1
-10:42:57.533 owner: 0
-10:42:57.533 owner fallback: 1
-10:42:57.534 prepared
-10:42:57.534 spawned
-10:42:57.534 attached
-10:42:57.534 teleported
-10:43:00.532 materialize: roots=1 rootChildren=148
-10:43:01.533 grid found
-10:43:01.533 serialized
-10:43:01.534 bundled roots=1
-10:43:01.534 owner: 0
-10:43:01.534 owner fallback: 1
-10:43:01.534 prepared
-10:43:01.534 spawned
-10:43:01.534 attached
-10:43:01.534 teleported
-10:43:04.582 materialize: roots=1 rootChildren=148
-10:43:05.582 grid found
-10:43:05.583 serialized
-10:43:05.583 bundled roots=1
-10:43:05.583 owner: 0
-10:43:05.583 owner fallback: 1
-10:43:05.584 prepared
-10:43:05.584 spawned
-10:43:05.584 attached
-10:43:05.584 teleported
-10:43:08.582 materialize: roots=1 rootChildren=148
-10:43:09.582 grid found
-10:43:09.583 serialized
-10:43:09.583 bundled roots=1
-10:43:09.583 owner: 0
-10:43:09.583 owner fallback: 1
-10:43:09.584 prepared
-10:43:09.584 spawned
-10:43:09.584 attached
-10:43:09.584 teleported
-10:43:12.582 materialize: roots=1 rootChildren=148
-10:43:13.582 grid found
-10:43:13.583 serialized
-10:43:13.583 bundled roots=1
-10:43:13.583 owner: 0
-10:43:13.583 owner fallback: 1
-10:43:13.584 prepared
-10:43:13.584 spawned
-10:43:13.584 attached
-10:43:13.584 teleported
-10:43:16.582 materialize: roots=1 rootChildren=148
-10:43:17.632 grid found
-10:43:17.633 serialized
-10:43:17.633 bundled roots=1
-10:43:17.633 owner: 0
-10:43:17.633 owner fallback: 1
-10:43:17.633 prepared
-10:43:17.634 spawned
-10:43:17.634 attached
-10:43:17.634 teleported
-10:43:20.632 materialize: roots=1 rootChildren=148
-10:43:44.632 grid found
-10:43:44.633 serialized
-10:43:44.633 bundled roots=1
-10:43:44.633 owner: 0
-10:43:44.633 owner fallback: 1
-10:43:44.633 prepared
-10:43:44.634 spawned
-10:43:44.634 attached
-10:43:44.634 teleported
-10:43:47.632 materialize: roots=1 rootChildren=148
+12:52:15.121 materialize: roots=1 rootChildren=16
+12:52:48.367 materialize: roots=1 rootChildren=16
+12:52:52.367 materialize: roots=1 rootChildren=16
+12:52:56.367 materialize: roots=1 rootChildren=16
+12:53:00.417 materialize: roots=1 rootChildren=16
+12:53:04.417 materialize: roots=1 rootChildren=16
+12:53:08.417 materialize: roots=1 rootChildren=16
+12:53:12.467 materialize: roots=1 rootChildren=16
+12:53:32.666 materialize: roots=1 rootChildren=9
+12:53:36.716 materialize: roots=1 rootChildren=9
+12:53:40.716 materialize: roots=1 rootChildren=9
+12:53:44.767 materialize: roots=1 rootChildren=9
+12:53:48.767 materialize: roots=1 rootChildren=9
+12:53:52.767 materialize: roots=1 rootChildren=9
+12:54:18.666 materialize: roots=1 rootChildren=9
+12:54:22.716 materialize: roots=1 rootChildren=9
+12:54:26.666 materialize: roots=1 rootChildren=9
+12:54:30.716 materialize: roots=1 rootChildren=9
+12:54:34.716 materialize: roots=1 rootChildren=9
+12:54:38.766 materialize: roots=1 rootChildren=9
+12:56:12.762 materialize: roots=1 rootChildren=9
+12:56:16.758 materialize: roots=1 rootChildren=9
+12:56:20.808 materialize: roots=1 rootChildren=9
+12:56:24.808 materialize: roots=1 rootChildren=9
+12:56:28.808 materialize: roots=1 rootChildren=9
+12:56:32.808 materialize: roots=1 rootChildren=9
+12:56:59.408 materialize: roots=1 rootChildren=9
+12:57:03.404 materialize: roots=1 rootChildren=9
+12:57:07.454 materialize: roots=1 rootChildren=9
+12:57:11.454 materialize: roots=1 rootChildren=9
+12:57:15.449 materialize: roots=1 rootChildren=9
+12:57:19.499 materialize: roots=1 rootChildren=9
+12:58:50.029 materialize: roots=1 rootChildren=9
+12:58:54.076 materialize: roots=1 rootChildren=9
+12:58:58.075 materialize: roots=1 rootChildren=9
+12:59:02.075 materialize: roots=1 rootChildren=9
+12:59:06.125 materialize: roots=1 rootChildren=9
+12:59:10.125 materialize: roots=1 rootChildren=9
+12:59:34.775 materialize: roots=1 rootChildren=9
+12:59:38.828 materialize: roots=1 rootChildren=9
+12:59:42.828 materialize: roots=1 rootChildren=9
+12:59:46.828 materialize: roots=1 rootChildren=9
+12:59:50.828 materialize: roots=1 rootChildren=9
+12:59:54.878 materialize: roots=1 rootChildren=9
+13:00:12.795 materialize: roots=1 rootChildren=9
+13:00:16.795 materialize: roots=1 rootChildren=9
+13:00:20.795 materialize: roots=1 rootChildren=9
+13:00:24.845 materialize: roots=1 rootChildren=9
+13:00:28.845 materialize: roots=1 rootChildren=9
+13:00:32.845 materialize: roots=1 rootChildren=9
+13:01:58.227 materialize: roots=1 rootChildren=9
+13:02:02.223 materialize: roots=1 rootChildren=9
+13:02:06.240 materialize: roots=1 rootChildren=9
+13:02:10.240 materialize: roots=1 rootChildren=9
+13:02:14.240 materialize: roots=1 rootChildren=9
+13:02:18.290 materialize: roots=1 rootChildren=9
+13:02:44.040 materialize: roots=1 rootChildren=9
+13:02:48.090 materialize: roots=1 rootChildren=9
+13:02:52.090 materialize: roots=1 rootChildren=9
+13:02:56.090 materialize: roots=1 rootChildren=9
+13:03:00.140 materialize: roots=1 rootChildren=9
+13:03:04.140 materialize: roots=1 rootChildren=9

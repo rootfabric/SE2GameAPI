@@ -11,18 +11,11 @@ static IEnumerable<TypeDefinition> All(TypeDefinition t)
     yield return t;
     foreach (var n in t.NestedTypes.SelectMany<TypeDefinition, TypeDefinition>(All)) yield return n;
 }
-foreach (var dll in new[] { "VRage.Core.Game.dll", "Game2.Simulation.dll" })
+foreach (var dll in new[] { "VRage.Core.dll", "VRage.Library.dll", "VRage.Core.Game.dll" })
 {
     var asm = AssemblyDefinition.ReadAssembly(Path.Combine(dir, dll), new ReaderParameters { AssemblyResolver = resolver });
-    foreach (var name in new[] { "WorldTransform", "EntityTransformFunctions" })
-    {
-        var t = asm.MainModule.Types.SelectMany<TypeDefinition, TypeDefinition>(All).FirstOrDefault(x => x.Name == name);
-        if (t != null)
-        {
-            Console.WriteLine($"{dll}: {t.FullName} (struct={t.IsValueType})");
-            if (name == "WorldTransform")
-                foreach (var c in t.Methods.Where(m => m.IsConstructor).Take(4))
-                    Console.WriteLine($"  ctor({string.Join(",", c.Parameters.Select(p => p.ParameterType.Name))})");
-        }
-    }
+    var t1 = asm.MainModule.Types.SelectMany<TypeDefinition, TypeDefinition>(All).FirstOrDefault(x => x.Name == "RelativeTransform");
+    if (t1 == null) continue;
+    Console.WriteLine($"=== {dll}: {t1.FullName} (struct={t1.IsValueType})");
+    foreach (var fd in t1.Fields.Where(f => !f.IsStatic)) Console.WriteLine($"  field {fd.FieldType.Name} {fd.Name}");
 }
