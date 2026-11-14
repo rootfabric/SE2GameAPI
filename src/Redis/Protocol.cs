@@ -6,7 +6,7 @@ public sealed record DeviceCommand(string RequestId, string Epoch, string GridId
 public sealed record NavigationRequest(double[] Target, double[]? Forward = null, double[]? Up = null,
     string Mode = "flight", double MaxSpeed = 5, double PositionTolerance = 1,
     double HeadingToleranceDeg = 3, double TimeoutSeconds = 120, bool AlignCourse = false,
-    bool KeepControlOnPlayer = true);
+    bool KeepControlOnPlayer = true, bool EjectPilot = false);
 public sealed record DeviceState(string Id, string GridId, string GridName, string Name, string Type,
     bool Enabled, bool Working, bool Functional, long Revision, long MeasuredAtMs = 0, string? Status = null, string[]? Capabilities = null, object? Properties = null,
     InventoryTelemetry[]? Inventories = null);
