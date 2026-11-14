@@ -17,7 +17,8 @@ public sealed record ProjectionRequest(string RequestId, string Epoch, string Gr
     string Action = "create", string? TargetGridId = null, double[]? Offset = null,
     int Count = 0, long ExpiresAtMs = 0, string? Mode = null);
 public sealed record ProjectionStatus(string RequestId, string Epoch, string GridId,
-    string State, string? Error, string? ProjectionEntityId, int Projections, int Materialized, long UpdatedAtMs);
+    string State, string? Error, string? ProjectionEntityId, int Projections, int Materialized,
+    long UpdatedAtMs, double[]? WorldPosition = null);
 public sealed record BlockInventory(string GridId, string GridName, string BlockId,
     string Definition, string[] Components, string? Adapter);
 public sealed record BridgeSnapshot(string Epoch, string State, long SampledAtMs, DeviceState[] Devices,

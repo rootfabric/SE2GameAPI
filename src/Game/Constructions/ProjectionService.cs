@@ -89,9 +89,41 @@ internal sealed class ProjectionService
                     var spawner3 = Spawner(session) ?? throw new InvalidOperationException("spawner_unavailable");
                     return CreateTemplate(session, projectionsComponent, spawner3, epoch, r, now);
                 case "list": return List(session, epoch, r, now);
+                case "position":
+                {
+                    var target = r.TargetGridId ?? throw new InvalidOperationException("target_projection_id_required");
+                    foreach (var entity in session.GetEntitiesOfType<ProjectionSourceComponent>())
+                    {
+                        var p = entity.TryGet<ProjectionSourceComponent>();
+                        if (p == null || entity.DEntity.ToString() != target) continue;
+                        var wt = entity.Data.GetWorldTransform();
+                        return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete", null,
+                            target, 1, 0, now, [wt.Position.X, wt.Position.Y, wt.Position.Z]);
+                    }
+                    throw new InvalidOperationException("projection_not_found");
+                }
                 case "remove":
                     var spawner4 = Spawner(session) ?? throw new InvalidOperationException("spawner_unavailable");
                     return Remove(session, spawner4, epoch, r, now);
+                case "move":
+                {
+                    var spawner5 = Spawner(session) ?? throw new InvalidOperationException("spawner_unavailable");
+                    var pid = r.TargetGridId ?? throw new InvalidOperationException("target_projection_id_required");
+                    foreach (var entity in session.GetEntitiesOfType<ProjectionSourceComponent>())
+                    {
+                        if (entity.DEntity.ToString() != pid) continue;
+                        var wt = entity.Data.GetWorldTransform();
+                        if (r.Offset is { Length: 3 } shift2)
+                        {
+                            wt.Position = new(wt.Position.X + shift2[0], wt.Position.Y + shift2[1], wt.Position.Z + shift2[2]);
+                            Keen.VRage.Core.Game.Data.EntityTransformFunctions.Teleport(entity.Data, ref wt);
+                        }
+                        var after = entity.Data.GetWorldTransform();
+                        return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete", null,
+                            pid, 1, 0, now, [after.Position.X, after.Position.Y, after.Position.Z]);
+                    }
+                    throw new InvalidOperationException("projection_not_found");
+                }
                 case "materialize": return Materialize(session, projectionsComponent, epoch, r, now);
                 default: throw new InvalidOperationException("invalid_action");
             }
@@ -382,6 +414,7 @@ internal sealed class ProjectionService
         var projection = spawned.TryGet<ProjectionSourceComponent>()
             ?? throw new InvalidOperationException("projection_component_missing");
         projections.AttachProjection(projection, host);
+        double[]? worldPos = null;
         if (r.Offset is { Length: 3 } shift)
         {
             // The offset is in the HOST's local frame: grids are rotated, a world
@@ -393,8 +426,15 @@ internal sealed class ProjectionService
                 target.Position.X + rotated.X, target.Position.Y + rotated.Y, target.Position.Z + rotated.Z);
             Keen.VRage.Core.Game.Data.EntityTransformFunctions.Teleport(spawned.Data, ref target);
         }
+        // Report the ACTUAL world position of the projection entity.
+        try
+        {
+            var wt = spawned.Data.GetWorldTransform();
+            worldPos = [wt.Position.X, wt.Position.Y, wt.Position.Z];
+        }
+        catch { }
         return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete", null,
-            spawned.DEntity.ToString(), 1, made, now);
+            spawned.DEntity.ToString(), 1, made, now, worldPos);
     }
 
     // Remove projections: by entity id (targetGridId) or all except one.
