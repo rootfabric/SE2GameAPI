@@ -89,6 +89,9 @@ internal sealed class ProjectionService
                     var spawner3 = Spawner(session) ?? throw new InvalidOperationException("spawner_unavailable");
                     return CreateTemplate(session, projectionsComponent, spawner3, epoch, r, now);
                 case "list": return List(session, epoch, r, now);
+                case "remove":
+                    var spawner4 = Spawner(session) ?? throw new InvalidOperationException("spawner_unavailable");
+                    return Remove(session, spawner4, epoch, r, now);
                 case "materialize": return Materialize(session, projectionsComponent, epoch, r, now);
                 default: throw new InvalidOperationException("invalid_action");
             }
@@ -315,11 +318,18 @@ internal sealed class ProjectionService
             for (int iz = 0; iz < n; iz++)
             {
                 var clone = template.DeepClone();
-                // Center the plate on the bundle origin: the spawn offset then
-                // controls the world position exactly (reference-free).
-                // X-Z plane: a horizontal base plate.
+                // A fully-built clone (BuildProgress=1) skips component costs
+                // on materialization (no steel plates required from cargo).
+                foreach (var c in clone.ObjectBuilders)
+                {
+                    if (c is Keen.Game2.Simulation.WorldObjects.CubeBlocks.CubeBlockObjectBuilder cb)
+                    { cb.BuildProgress = 1f; cb.HealthIntegrity = 1f; }
+                }
+                // Snap to the donor's grid: reference is a real block position
+                // (a cell CENTER). Building from (0,0,0) would land on grid node
+                // boundaries and slice across cells (FailedOccupiedGridCells).
                 var pos = new Keen.VRage.Library.Mathematics.Vector3D(
-                    (ix - half) * step, 0, (iz - half) * step);
+                    reference.Value.X + (ix - half) * step, reference.Value.Y, reference.Value.Z + (iz - half) * step);
                 foreach (var c in clone.ObjectBuilders)
                     if (c is Keen.VRage.Core.Game.Components.ChildTransformComponentObjectBuilder ct)
                     {
@@ -351,13 +361,38 @@ internal sealed class ProjectionService
         projections.AttachProjection(projection, host);
         if (r.Offset is { Length: 3 } shift)
         {
+            // The offset is in the HOST's local frame: grids are rotated, a world
+            // axis shift would slice across grid cells diagonally.
             var target = host.Data.GetWorldTransform();
-            target.Position = new Keen.VRage.Library.Mathematics.Vector3D(
-                target.Position.X + shift[0], target.Position.Y + shift[1], target.Position.Z + shift[2]);
+            var local = new Keen.VRage.Library.Mathematics.Vector3D(shift[0], shift[1], shift[2]);
+            var rotated = Keen.VRage.Library.Mathematics.Vector3D.Transform(local, target.Orientation);
+            target.Position = new(
+                target.Position.X + rotated.X, target.Position.Y + rotated.Y, target.Position.Z + rotated.Z);
             Keen.VRage.Core.Game.Data.EntityTransformFunctions.Teleport(spawned.Data, ref target);
         }
         return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete", null,
             spawned.DEntity.ToString(), 1, made, now);
+    }
+
+    // Remove projections: by entity id (targetGridId) or all except one.
+    private ProjectionStatus Remove(Session session, IEntitySpawner spawner, string epoch, ProjectionRequest r, long now)
+    {
+        int removed = 0;
+        string? errorId = null;
+        var targets = new List<Keen.VRage.DCS.Components.Entity>();
+        foreach (var entity in session.GetEntitiesOfType<ProjectionSourceComponent>())
+        {
+            var p = entity.TryGet<ProjectionSourceComponent>();
+            if (p == null) continue;
+            // r.TargetGridId == null/"" -> remove ALL projections
+            if (string.IsNullOrWhiteSpace(r.TargetGridId) || entity.DEntity.ToString() == r.TargetGridId)
+                targets.Add(entity);
+        }
+        foreach (var entity in targets)
+            try { spawner.DeleteEntity(entity); removed++; }
+            catch { errorId ??= entity.DEntity.ToString(); }
+        return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete",
+            errorId != null ? $"failed to remove {errorId}" : null, null, removed, 0, now);
     }
 
     private ProjectionStatus List(Session session, string epoch, ProjectionRequest r, long now)
@@ -395,18 +430,27 @@ internal sealed class ProjectionService
         if (bundle.RootBuilders.Length == 0)
             throw new InvalidOperationException("projection_bundle_empty");
         var rootOb = bundle.RootBuilders[0];
-        try { System.IO.File.AppendAllText(@"C:\SE2GameAPI\convert_trace.log",
-            $"{DateTimeOffset.UtcNow:HH:mm:ss.fff} materialize: roots={bundle.Roots} rootChildren={Keen.VRage.Core.Game.Components.HierarchyComponentObjectBuilderExtensions.TryGetDirectChilds(rootOb).Length}\n"); } catch { }
+        // Walk the projection bundle: the prefab root's direct children, plus a
+        // one-level-deep fallback for templates (prefab -> grid -> blocks).
+        var level1 = Keen.VRage.Core.Game.Components.HierarchyComponentObjectBuilderExtensions.TryGetDirectChilds(rootOb);
+        var blocks = new List<Keen.VRage.DCS.ObjectBuilders.EntityObjectBuilder>();
+        for (int i = 0; i < level1.Length; i++)
+        {
+            var sub = Keen.VRage.Core.Game.Components.HierarchyComponentObjectBuilderExtensions.TryGetDirectChilds(level1[i]);
+            if (sub.Length > 0)
+                for (int j = 0; j < sub.Length; j++) blocks.Add(sub[j]);
+            else
+                blocks.Add(level1[i]);
+        }
+        try { System.IO.File.AppendAllText(@"C:\SE2GameAPI\template_trace.log",
+            $"{DateTimeOffset.UtcNow:HH:mm:ss.fff} materialize: roots={bundle.Roots} level1={level1.Length} blocks={blocks.Count}\n"); } catch { }
         int materialized = 0, failures = 0;
         string? firstError = null;
         int limit = r.Count > 0 ? r.Count : int.MaxValue;
-        // ChildRef hierarchy: [index in Builders, index in Children span, ...].
-        var children = Keen.VRage.Core.Game.Components.HierarchyComponentObjectBuilderExtensions
-            .TryGetDirectChilds(rootOb);
-        for (int i = 0; i < children.Length; i++)
+        for (int i = 0; i < blocks.Count; i++)
         {
             if (materialized >= limit) break;
-            Span<int> hierarchy = stackalloc int[] { 0, i };
+            Span<int> hierarchy = stackalloc int[] { 0, 0, i };
             var childRef = new ProjectionSourceComponent.ChildRef(hierarchy);
             try
             {
