@@ -11,12 +11,18 @@ static IEnumerable<TypeDefinition> All(TypeDefinition t)
     yield return t;
     foreach (var n in t.NestedTypes.SelectMany<TypeDefinition, TypeDefinition>(All)) yield return n;
 }
-var sim = AssemblyDefinition.ReadAssembly(Path.Combine(dir, "Game2.Simulation.dll"),
-    new ReaderParameters { AssemblyResolver = resolver });
-var t = sim.MainModule.Types.SelectMany<TypeDefinition, TypeDefinition>(All).First(x => x.Name == "MissionSessionComponent");
-var m = t.Methods.First(x => x.Name == "TryConvertBlockToProjection");
-foreach (var ins in m.Body.Instructions)
+foreach (var dll in new[] { "VRage.Core.Game.dll", "Game2.Simulation.dll" })
 {
-    if (ins.Operand is MethodReference mr && mr.Name == "Get")
-        Console.WriteLine($"{ins.OpCode.Name} {mr.DeclaringType.FullName}<{(mr as GenericInstanceMethod != null ? string.Join(",", ((GenericInstanceMethod)mr).GenericArguments.Select(a => a.FullName)) : "?")}>::{mr.Name}({string.Join(",", mr.Parameters.Select(p => p.ParameterType.Name))})");
+    var asm = AssemblyDefinition.ReadAssembly(Path.Combine(dir, dll), new ReaderParameters { AssemblyResolver = resolver });
+    foreach (var name in new[] { "WorldTransform", "EntityTransformFunctions" })
+    {
+        var t = asm.MainModule.Types.SelectMany<TypeDefinition, TypeDefinition>(All).FirstOrDefault(x => x.Name == name);
+        if (t != null)
+        {
+            Console.WriteLine($"{dll}: {t.FullName} (struct={t.IsValueType})");
+            if (name == "WorldTransform")
+                foreach (var c in t.Methods.Where(m => m.IsConstructor).Take(4))
+                    Console.WriteLine($"  ctor({string.Join(",", c.Parameters.Select(p => p.ParameterType.Name))})");
+        }
+    }
 }

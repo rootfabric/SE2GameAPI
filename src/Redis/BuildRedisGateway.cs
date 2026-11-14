@@ -74,7 +74,7 @@ internal sealed class BuildRedisGateway : IDisposable
                                 string? error = !state.Ready ? "no_world" : r.Epoch != state.Epoch ? "stale_session" :
                                     r.ExpiresAtMs <= now || r.ExpiresAtMs > now + 120000 ? "invalid_deadline" :
                                     pending.Count >= 4 ? "busy" :
-                                    r.Action is not ("create" or "list" or "materialize") ? "invalid_action" :
+                                    r.Action is not ("create" or "list" or "materialize" or "convert_block") ? "invalid_action" :
                                     string.IsNullOrWhiteSpace(r.GridId) ? "grid_required" : null;
                                 if (error != null) await Publish(Rejected(r, error, now));
                                 else

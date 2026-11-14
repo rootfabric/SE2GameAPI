@@ -77,18 +77,25 @@ internal sealed class ProjectionService
         try
         {
             var projectionsComponent = Projections(session) ?? throw new InvalidOperationException("projections_component_unavailable");
-            var spawnerComponent = Spawner(session) ?? throw new InvalidOperationException("spawner_unavailable");
             switch (r.Action)
             {
-                case "create": return await Create(session, projectionsComponent, spawnerComponent, epoch, r, now);
-                case "list": return List(projectionsComponent, epoch, r, now);
+                case "create":
+                    var spawnerComponent = Spawner(session) ?? throw new InvalidOperationException("spawner_unavailable");
+                    return await Create(session, projectionsComponent, spawnerComponent, epoch, r, now);
+                case "convert_block":
+                    var spawner2 = Spawner(session) ?? throw new InvalidOperationException("spawner_unavailable");
+                    return ConvertBlock(session, projectionsComponent, spawner2, epoch, r, now);
+                case "list": return List(session, epoch, r, now);
                 case "materialize": return Materialize(session, projectionsComponent, epoch, r, now);
                 default: throw new InvalidOperationException("invalid_action");
             }
         }
         catch (Exception e)
         {
-            return new ProjectionStatus(r.RequestId, epoch, r.GridId, "failed", e.GetBaseException().Message,
+            var trace = e.GetBaseException().StackTrace ?? "";
+            var firstFrame = string.Join(" | ", trace.Split('\n').Where(l => l.Contains("SE2GameAPI")).Take(3)).Trim();
+            return new ProjectionStatus(r.RequestId, epoch, r.GridId, "failed",
+                e.GetBaseException().Message + (firstFrame != "" ? " @ " + firstFrame : ""),
                 null, 0, 0, now);
         }
     }
@@ -114,16 +121,13 @@ internal sealed class ProjectionService
             var targetWt = target.Data.GetWorldTransform();
             var position = new Keen.VRage.Library.Mathematics.Vector3D(
                 targetWt.Position.X + offset[0], targetWt.Position.Y + offset[1], targetWt.Position.Z + offset[2]);
-            // Component builders live in the ObjectBuilders keyed list.
+            // WorldTransform is a struct: read-copy-write, never reflection SetValue (boxing).
             foreach (var child in projectionOb.ObjectBuilders)
             {
-                if (child?.GetType().Name != "WorldTransformComponentObjectBuilder") continue;
-                var wtProp = child.GetType().GetProperty("Transform");
-                if (wtProp == null || !wtProp.CanWrite) continue;
-                var transform = wtProp.GetValue(child);
-                var posProp = transform?.GetType().GetProperty("Position");
-                if (posProp != null && posProp.CanWrite)
-                    posProp.SetValue(transform, position);
+                if (child is not Keen.VRage.Core.Game.Components.WorldTransformComponentObjectBuilder wt) continue;
+                var transform = wt.Transform;
+                transform.Position = position;
+                wt.Transform = transform;
             }
         }
         // 4. Spawn the projection entity and attach it to the host grid.
@@ -137,15 +141,143 @@ internal sealed class ProjectionService
             spawned.DEntity.ToString(), 1, 0, now);
     }
 
-    private ProjectionStatus List(GridProjectionsSessionComponent projections, string epoch, ProjectionRequest r, long now)
+    // Mission-style conversion: serialize the WHOLE source grid, spawn its
+    // projection at the exact same place, then delete the original. The
+    // projection ghost keeps every mount point, ready for block-by-block
+    // materialization (the hand welder path).
+    private ProjectionStatus ConvertBlock(Session session, GridProjectionsSessionComponent projections,
+        IEntitySpawner spawner, string epoch, ProjectionRequest r, long now)
     {
-        // AllProjections requires a grid entity; enumerate via the session scene.
-        throw new InvalidOperationException("list_not_exposed");
+        var grid = FindGrid(session, r.GridId) ?? throw new InvalidOperationException("grid_not_found");
+        var gridEntity = grid.Entity;
+        void Mark(string step)
+        {
+            try { System.IO.File.AppendAllText(@"C:\SE2GameAPI\convert_trace.log", DateTimeOffset.UtcNow.ToString("HH:mm:ss.fff") + " " + step + "\n"); } catch { }
+        }
+        Mark("grid found");
+        // 1. Serialize the whole grid into a bundle (same as the mission converter).
+        var serializer = session.Scene.EntitySerializer;
+        var allocate = typeof(Keen.VRage.DCS.Builders.EntitySerializer)
+            .GetMethod("AllocateEmptyEOBFor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        var ob = (Keen.VRage.DCS.ObjectBuilders.EntityObjectBuilder)allocate!.Invoke(serializer, new object[] { gridEntity })!;
+        serializer.Serialize(gridEntity, ob);
+        Mark("serialized");
+        var bundle = new EntityBundle();
+        bundle.Add(ob, gridEntity, true);
+        Mark("bundled roots=" + bundle.Roots);
+        // 2. Prepare + spawn the projection exactly at the grid position.
+        // Owner comes from the first block (mission path); grids may carry none.
+        Keen.Game2.Simulation.GameSystems.Ownership.IdentityId owner = default;
+        var blocks = grid.CubeBlockStorage.GetAllCubeBlocks();
+        for (int i = 0; i < blocks.Length; i++)
+        {
+            if (blocks[i] == null) continue;
+            var blockOwner = blocks[i].Entity.TryGet<OwnershipComponent>()?.Owner;
+            if (blockOwner.HasValue) { owner = blockOwner.Value; break; }
+        }
+        Mark("owner: " + owner);
+        if (owner == default)
+        {
+            // Unowned NPC grid: borrow any valid owner in the world (player bases).
+            foreach (var entity in session.GetEntitiesOfType<CubeGridComponent>())
+            {
+                var g = entity.TryGet<CubeGridComponent>();
+                if (g == null) continue;
+                var o = g.Entity.TryGet<OwnershipComponent>()?.Owner;
+                if (o.HasValue && o.Value != default) { owner = o.Value; break; }
+            }
+            Mark("owner fallback: " + owner);
+        }
+        var projectionOb = projections.PrepareGridProjection(bundle, owner)
+            ?? throw new InvalidOperationException("prepare_projection_failed");
+        Mark("prepared");
+        // Optional small offset: projected blocks must touch the source grid to
+        // have mount points for materialization (partial overlap is fine).
+        var builder = DEntityBuilder.ForScene(session.Scene);
+        var spawned = spawner.SpawnEntity(projectionOb, builder)
+            ?? throw new InvalidOperationException("projection_spawn_failed");
+        Mark("spawned");
+        var projection = spawned.TryGet<ProjectionSourceComponent>()
+            ?? throw new InvalidOperationException("projection_component_missing");
+        // Attach to the requested host grid (default: the source grid itself).
+        var host = string.IsNullOrWhiteSpace(r.TargetGridId) ? grid : FindGrid(session, r.TargetGridId!) ?? grid;
+        projections.AttachProjection(projection, host);
+        Mark("attached");
+        // The bundle keeps absolute block positions (TransformInvBundle recomputes
+        // children), so shifting OBs is useless. Move the spawned projection
+        // entity itself: materialization bakes entity transform + local blocks.
+        if (r.Offset is { Length: 3 } shift)
+        {
+            var target = host.Data.GetWorldTransform();
+            target.Position = new Keen.VRage.Library.Mathematics.Vector3D(
+                target.Position.X + shift[0], target.Position.Y + shift[1], target.Position.Z + shift[2]);
+            Keen.VRage.Core.Game.Data.EntityTransformFunctions.Teleport(spawned.Data, ref target);
+            Mark("teleported");
+        }
+        // The source grid stays alive: deleting it tears down the attached
+        // projection with it. Materialize from the ghost builds a copy.
+        return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete", null,
+            spawned.DEntity.ToString(), 1, 0, now);
+    }
+
+    private ProjectionStatus List(Session session, string epoch, ProjectionRequest r, long now)
+    {
+        // Enumerate all ProjectionSourceComponent entities in the scene.
+        var found = new List<string>();
+        foreach (var entity in session.GetEntitiesOfType<ProjectionSourceComponent>())
+        {
+            var p = entity.TryGet<ProjectionSourceComponent>();
+            if (p == null) continue;
+            found.Add(entity.DEntity.ToString());
+        }
+        return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete", null,
+            found.Count > 0 ? string.Join(",", found) : null, found.Count, 0, now);
     }
 
     private ProjectionStatus Materialize(Session session, GridProjectionsSessionComponent projections,
         string epoch, ProjectionRequest r, long now)
     {
-        throw new InvalidOperationException("materialize_not_exposed");
+        // Find the projection entity by id (r.TargetGridId holds the projection entity id).
+        ProjectionSourceComponent? projection = null;
+        Keen.VRage.DCS.Components.Entity? projectionEntity = null;
+        foreach (var entity in session.GetEntitiesOfType<ProjectionSourceComponent>())
+        {
+            var p = entity.TryGet<ProjectionSourceComponent>();
+            if (p != null && entity.DEntity.ToString() == (r.TargetGridId ?? ""))
+            { projection = p; projectionEntity = entity; break; }
+        }
+        if (projection == null || projectionEntity == null)
+            throw new InvalidOperationException("projection_not_found");
+        var host = FindGrid(session, r.GridId);
+        var owner = host?.Entity.TryGet<OwnershipComponent>()?.Owner ?? default;
+        // Walk the projection bundle: root builder -> direct children (blocks).
+        var bundle = projection.ProjectionData;
+        if (bundle.RootBuilders.Length == 0)
+            throw new InvalidOperationException("projection_bundle_empty");
+        var rootOb = bundle.RootBuilders[0];
+        try { System.IO.File.AppendAllText(@"C:\SE2GameAPI\convert_trace.log",
+            $"{DateTimeOffset.UtcNow:HH:mm:ss.fff} materialize: roots={bundle.Roots} rootChildren={Keen.VRage.Core.Game.Components.HierarchyComponentObjectBuilderExtensions.TryGetDirectChilds(rootOb).Length}\n"); } catch { }
+        int materialized = 0, failures = 0;
+        string? firstError = null;
+        int limit = r.Count > 0 ? r.Count : int.MaxValue;
+        // ChildRef hierarchy: [index in Builders, index in Children span, ...].
+        var children = Keen.VRage.Core.Game.Components.HierarchyComponentObjectBuilderExtensions
+            .TryGetDirectChilds(rootOb);
+        for (int i = 0; i < children.Length; i++)
+        {
+            if (materialized >= limit) break;
+            Span<int> hierarchy = stackalloc int[] { 0, i };
+            var childRef = new ProjectionSourceComponent.ChildRef(hierarchy);
+            try
+            {
+                var result = projections.TryMaterializeBlock(projection, childRef, owner, true);
+                if (result.Item1 == Keen.Game2.Simulation.GameSystems.BlockPlacement.BuildResultEnum.Success) materialized++;
+                else { failures++; firstError ??= result.Item1.ToString(); }
+            }
+            catch (Exception e) { failures++; firstError ??= e.GetBaseException().Message; }
+        }
+        return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete",
+            failures > 0 ? $"{failures} failed: {firstError ?? "unknown"}" : null,
+            projectionEntity.DEntity.ToString(), 1, materialized, now);
     }
 }
