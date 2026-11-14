@@ -342,6 +342,29 @@ internal sealed class ProjectionService
             }
         var newBundle = new EntityBundle();
         newBundle.Add(gridOb, donor.Entity, true);
+        // INSTANT mode: spawn the plate as a REAL grid (no ghost, no weld).
+        // Survival's GameplayRules block free materialization; the mission
+        // spawner path builds the grid directly.
+        if (r.Mode == "instant")
+        {
+            var worldWt = host.Data.GetWorldTransform();
+            var local = new Keen.VRage.Library.Mathematics.Vector3D(
+                r.Offset is { Length: 3 } o ? o[0] : 0, r.Offset is { Length: 3 } o2 ? o2[1] : 0,
+                r.Offset is { Length: 3 } o3 ? o3[2] : 0);
+            var rotated = Keen.VRage.Library.Mathematics.Vector3D.Transform(local, worldWt.Orientation);
+            foreach (var root in newBundle.RootBuilders)
+                foreach (var c in root.ObjectBuilders)
+                    if (c is Keen.VRage.Core.Game.Components.WorldTransformComponentObjectBuilder wt)
+                    {
+                        var t2 = wt.Transform;
+                        t2.Position = new(worldWt.Position.X + rotated.X, worldWt.Position.Y + rotated.Y, worldWt.Position.Z + rotated.Z);
+                        t2.Orientation = worldWt.Orientation;
+                        wt.Transform = t2;
+                    }
+            var spawnedGrids = spawner.SpawnBundle(newBundle);
+            return new ProjectionStatus(r.RequestId, epoch, r.GridId, "complete", null,
+                spawnedGrids.Length > 0 ? spawnedGrids[0].DEntity.ToString() : null, made, made, now);
+        }
         // 4. Prepare + spawn near the host + attach.
         var owner = host.Entity.TryGet<OwnershipComponent>()?.Owner ?? default;
         if (owner == default)

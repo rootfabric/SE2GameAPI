@@ -15,7 +15,7 @@ public sealed record InventoryTelemetry(int Slot, string MassCurrent, string Mas
 public sealed record CommandResult(string RequestId, string Status, string? Error, DeviceState? ActualState);
 public sealed record ProjectionRequest(string RequestId, string Epoch, string GridId,
     string Action = "create", string? TargetGridId = null, double[]? Offset = null,
-    int Count = 0, long ExpiresAtMs = 0);
+    int Count = 0, long ExpiresAtMs = 0, string? Mode = null);
 public sealed record ProjectionStatus(string RequestId, string Epoch, string GridId,
     string State, string? Error, string? ProjectionEntityId, int Projections, int Materialized, long UpdatedAtMs);
 public sealed record BlockInventory(string GridId, string GridName, string BlockId,

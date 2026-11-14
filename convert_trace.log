@@ -128,3 +128,12 @@
 13:36:15.194 materialize: roots=1 rootChildren=4
 13:36:20.244 materialize: roots=1 rootChildren=4
 13:36:25.244 materialize: roots=1 rootChildren=4
+13:52:06.086 grid found
+13:52:06.087 serialized
+13:52:06.087 bundled roots=1
+13:52:06.087 owner: 0
+13:52:06.087 owner fallback: 1
+13:52:06.087 prepared
+13:52:06.088 spawned
+13:52:06.088 attached
+13:52:06.088 teleported
